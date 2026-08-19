@@ -1,0 +1,42 @@
+.wrapper {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.spinner {
+  position: relative;
+  display: inline-block;
+}
+
+.sm { width: 20px; height: 20px; }
+.md { width: 36px; height: 36px; }
+.lg { width: 56px; height: 56px; }
+
+.ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  border: 2px solid transparent;
+  border-top-color: var(--accent-purple);
+  animation: spin 0.8s linear infinite;
+}
+
+.ring2 {
+  border-top-color: var(--accent-blue);
+  animation-duration: 1.2s;
+  animation-direction: reverse;
+  opacity: 0.5;
+}
+
+.label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
