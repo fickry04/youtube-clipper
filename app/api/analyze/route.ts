@@ -32,7 +32,7 @@ const VALID_CATEGORIES: ViralCategory[] = [
 ];
 
 // ============================================================
-// SYSTEM PROMPT (faithfully ported from SeleksiTranskrip.py)
+// SYSTEM PROMPT
 // ============================================================
 
 const SYSTEM_PROMPT = `You are an expert viral short-form video editor and content strategist.
