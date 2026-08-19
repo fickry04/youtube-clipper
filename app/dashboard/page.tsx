@@ -33,7 +33,7 @@ export default async function DashboardPage() {
           Welcome back, <span className="dash-title-name">{session.user.name || 'Creator'}</span>
         </h1>
         <p className="dash-subtitle">
-          Your AI-powered viral clip analysis platform
+          Your AI-powered youtube clip analysis platform
         </p>
       </div>
 

@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 
 import { VideoDetailManager } from '@/components/video/VideoDetailManager';
+import { DeleteVideoButton } from '@/components/video/DeleteVideoButton';
 
 export default async function VideoDetailPage({
   params,
@@ -139,6 +140,13 @@ export default async function VideoDetailPage({
             </a>
           </p>
         </div>
+
+        <DeleteVideoButton
+          videoId={video.id}
+          projectId={projectId}
+          videoTitle={video.title ?? video.youtubeId}
+          clipCount={viralAnalysis?.clips.length ?? 0}
+        />
       </div>
 
       {/* =========================================================

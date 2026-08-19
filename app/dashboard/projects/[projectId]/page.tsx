@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { redirect, notFound } from 'next/navigation';
 import { AddVideoForm } from '@/components/projects/AddVideoForm';
+import { DeleteProjectButton } from '@/components/projects/DeleteProjectButton';
 
 export default async function ProjectDetailPage({
   params,
@@ -47,10 +48,19 @@ export default async function ProjectDetailPage({
           <span className="breadcrumb-sep">›</span>
           <span className="breadcrumb-current">{project.name}</span>
         </div>
-        <h1 className="dash-title">{project.name}</h1>
-        {project.description && (
-          <p className="dash-subtitle">{project.description}</p>
-        )}
+        <div className="dash-header-row">
+          <div>
+            <h1 className="dash-title">{project.name}</h1>
+            {project.description && (
+              <p className="dash-subtitle">{project.description}</p>
+            )}
+          </div>
+          <DeleteProjectButton
+            projectId={project.id}
+            projectName={project.name}
+            videoCount={project.videos.length}
+          />
+        </div>
       </div>
 
       {/* Add Video */}

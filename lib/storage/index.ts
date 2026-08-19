@@ -30,6 +30,12 @@ export interface StorageService {
   delete(key: string): Promise<void>;
 
   /**
+   * Delete an entire directory from storage by directory key/path.
+   * Ignores errors if the directory does not exist.
+   */
+  deleteDirectory(dirKey: string): Promise<void>;
+
+  /**
    * Check whether a file exists at the given key.
    */
   exists(key: string): Promise<boolean>;
@@ -115,6 +121,18 @@ export class LocalStorageService implements StorageService {
     const filePath = this.resolvePath(key);
     try {
       await fs.unlink(filePath);
+    } catch (err) {
+      // Ignore ENOENT (already deleted)
+      if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {
+        throw err;
+      }
+    }
+  }
+
+  async deleteDirectory(dirKey: string): Promise<void> {
+    const dirPath = this.resolvePath(dirKey);
+    try {
+      await fs.rm(dirPath, { recursive: true, force: true });
     } catch (err) {
       // Ignore ENOENT (already deleted)
       if ((err as NodeJS.ErrnoException).code !== 'ENOENT') {

@@ -41,7 +41,7 @@ export function Navbar() {
               </linearGradient>
             </defs>
           </svg>
-          <span className="navbar-logo-text">Viral Clipper</span>
+          <span className="navbar-logo-text">Youtube Clipper</span>
         </Link>
 
         {/* Nav links */}
