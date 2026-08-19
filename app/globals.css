@@ -1414,9 +1414,10 @@ body {
   max-width: 220px;
   aspect-ratio: 9/16;
   background: #09090b;
-  border: 10px solid #1e1e24; /* Bezel */
+  border: 10px solid #1e1e24;
+  /* Bezel */
   border-radius: 36px;
-  box-shadow: 
+  box-shadow:
     0 12px 36px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.05),
     var(--shadow-purple);
@@ -1426,7 +1427,7 @@ body {
 
 .clip-video-mockup:hover {
   transform: scale(1.03);
-  box-shadow: 
+  box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.1),
     var(--shadow-purple-strong);
@@ -1461,7 +1462,8 @@ body {
 .clip-video-player {
   width: 100%;
   height: 100%;
-  object-fit: cover; /* Cover is ideal for portrait mockups */
+  object-fit: cover;
+  /* Cover is ideal for portrait mockups */
 }
 
 .clip-video-processing,
