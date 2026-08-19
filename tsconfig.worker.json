@@ -1,0 +1,20 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "module": "commonjs",
+    "moduleResolution": "node",
+    "target": "ES2020",
+    "isolatedModules": false,
+    "noEmit": false,
+    "outDir": "./dist/workers",
+    "paths": {
+      "@/*": ["./*"]
+    }
+  },
+  "include": [
+    "workers/**/*.ts",
+    "lib/**/*.ts",
+    "prisma/generated/**/*.ts"
+  ],
+  "exclude": ["node_modules", "app", "components", ".next"]
+}
