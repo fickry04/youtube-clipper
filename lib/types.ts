@@ -36,15 +36,6 @@ export interface ErrorResponse {
 
 export type ApiResponse<T> = T | ErrorResponse;
 
-// App UI state
-export type AppStatus =
-  | 'idle'
-  | 'loading-languages'
-  | 'language-selection'
-  | 'loading-transcript'
-  | 'ready'
-  | 'error';
-
 // ─── Viral Clip Analysis ───────────────────────────────────────────────────
 
 export type ViralCategory =
