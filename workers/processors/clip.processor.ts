@@ -2,20 +2,70 @@
  * workers/processors/clip.processor.ts
  *
  * For each clip ID in the payload:
- *   1. Resolves the source video path from storage
- *   2. Calls FFmpeg to cut the segment
- *   3. Saves the clip to storage
+ *   1. Loads the clip time range (startSeconds, endSeconds) and parent YouTube URL
+ *   2. Downloads ONLY that specific time range directly from YouTube via yt-dlp --download-sections
+ *   3. Saves the clip MP4 to storage
  *   4. Creates / updates VideoAsset record
- *   5. Updates Clip processingStatus
- *
- * After all clips are cut, enqueues a GENERATE_SUBTITLE job for each.
+ *   5. Updates Clip processingStatus to COMPLETED
  */
 
 import { Job } from 'bullmq';
+import { spawn } from 'child_process';
+import * as path from 'path';
+import * as fs from 'fs/promises';
+import * as os from 'os';
 import prisma from '../../lib/prisma';
-import { getStorage, StorageKeys, LocalStorageService } from '../../lib/storage';
-import { cutVideo } from '../../lib/ffmpeg';
+import { getStorage, StorageKeys } from '../../lib/storage';
 import type { CreateClipsPayload } from '../../lib/queue/jobs';
+
+const YTDLP_BIN = process.env.YTDLP_PATH ?? 'yt-dlp';
+
+async function downloadClipSection(
+  youtubeUrl: string,
+  startSec: number,
+  endSec: number,
+  outputPattern: string
+): Promise<void> {
+  const args = [
+    '-4',
+    '--download-sections',
+    `*${startSec}-${endSec}`,
+    '--force-keyframes-at-cuts',
+    '--merge-output-format',
+    'mp4',
+    '--output',
+    outputPattern,
+    '--no-playlist',
+    '--js-runtimes',
+    'node',
+    '--extractor-args',
+    'youtube:player_client=web_embedded',
+    youtubeUrl,
+  ];
+
+  await new Promise<void>((resolve, reject) => {
+    let stderrOutput = '';
+    const child = spawn(YTDLP_BIN, args, {
+      timeout: 5 * 60 * 1000, // 5 minutes max per clip
+    });
+
+    child.stderr?.on('data', (data) => {
+      stderrOutput += data.toString();
+    });
+
+    child.on('close', (code) => {
+      if (code === 0) {
+        resolve();
+      } else {
+        reject(new Error(`yt-dlp exited with code ${code}. Error: ${stderrOutput}`));
+      }
+    });
+
+    child.on('error', (err) => {
+      reject(err);
+    });
+  });
+}
 
 export async function processClips(job: Job<CreateClipsPayload>): Promise<void> {
   const { jobId, videoId, userId, clipIds } = job.data;
@@ -28,73 +78,79 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
   await job.updateProgress(5);
 
   try {
-    // Locate source video in storage
     const storage = getStorage();
-    const sourceKey = StorageKeys.videoSource(userId, videoId);
-    const sourcePath = await storage.get(sourceKey);
-
     const total = clipIds.length;
 
     for (let i = 0; i < total; i++) {
       const clipId = clipIds[i];
 
-      // Load clip metadata
-      const clip = await prisma.clip.findUnique({ where: { id: clipId } });
+      // Load clip metadata along with the parent video
+      const clip = await prisma.clip.findUnique({
+        where: { id: clipId },
+        include: {
+          viralAnalysis: {
+            include: {
+              video: {
+                select: { id: true, youtubeUrl: true },
+              },
+            },
+          },
+        },
+      });
+
       if (!clip) {
         console.warn(`[clip.processor] Clip ${clipId} not found, skipping.`);
         continue;
       }
 
-      await prisma.clip.update({
-        where: { id: clipId },
-        data: { processingStatus: 'PROCESSING' },
-      });
-
-      const clipKey = StorageKeys.clipVideo(userId, clipId);
-
-      // Resolve absolute output path (local storage only)
-      let outputPath: string;
-      if (storage instanceof LocalStorageService) {
-        outputPath = storage.getAbsolutePath(clipKey);
-      } else {
-        // For remote storage, we write to a temp path and then upload
-        const { mkdtemp } = await import('fs/promises');
-        const { join } = await import('path');
-        const os = await import('os');
-        const tmpDir = await mkdtemp(join(os.tmpdir(), `vc-clip-${clipId}-`));
-        outputPath = join(tmpDir, 'clip.mp4');
+      const youtubeUrl = clip.viralAnalysis.video.youtubeUrl;
+      if (!youtubeUrl) {
+        console.warn(`[clip.processor] Clip ${clipId} has no youtubeUrl, skipping.`);
+        continue;
       }
 
+      await prisma.clip.update({
+        where: { id: clipId },
+        data: { processingStatus: 'PROCESSING', processingError: null },
+      });
+
+      const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-clip-sec-${clipId}-`));
+      const tmpFile = path.join(tmpDir, 'clip.%(ext)s');
+
       try {
-        await cutVideo({
-          sourcePath,
-          startSeconds: clip.startSeconds,
-          endSeconds: clip.endSeconds,
-          outputPath,
-        });
+        // Download only the needed section via yt-dlp
+        await downloadClipSection(
+          youtubeUrl,
+          clip.startSeconds,
+          clip.endSeconds,
+          tmpFile
+        );
 
-        // If remote storage, upload from tmp
-        if (!(storage instanceof LocalStorageService)) {
-          await storage.save(clipKey, outputPath);
-          const { rm } = await import('fs/promises');
-          await rm(outputPath, { force: true });
+        // Find the actual output MP4 file
+        const files = await fs.readdir(tmpDir);
+        const mp4 = files.find((f) => f.endsWith('.mp4'));
+        if (!mp4) {
+          throw new Error('yt-dlp finished but no .mp4 file was produced for the clip.');
         }
+        const downloadedPath = path.join(tmpDir, mp4);
+        const fileStat = await fs.stat(downloadedPath);
 
-        // Get file size
-        const { stat } = await import('fs/promises');
-        const fileStat = await stat(outputPath).catch(() => null);
+        // Save clip to storage
+        const clipKey = StorageKeys.clipVideo(userId, clipId);
+        await storage.save(clipKey, downloadedPath);
 
         // Upsert VideoAsset
         const existingAsset = await prisma.videoAsset.findUnique({
           where: { clipId },
         });
+
         if (existingAsset) {
           await prisma.videoAsset.update({
             where: { id: existingAsset.id },
             data: {
               storagePath: clipKey,
               mimeType: 'video/mp4',
-              fileSize: fileStat ? BigInt(fileStat.size) : undefined,
+              fileSize: BigInt(fileStat.size),
               duration: clip.durationSeconds,
             },
           });
@@ -104,7 +160,7 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
               type: 'clip',
               storagePath: clipKey,
               mimeType: 'video/mp4',
-              fileSize: fileStat ? BigInt(fileStat.size) : undefined,
+              fileSize: BigInt(fileStat.size),
               duration: clip.durationSeconds,
               videoId,
               clipId,
@@ -114,7 +170,7 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
 
         await prisma.clip.update({
           where: { id: clipId },
-          data: { processingStatus: 'COMPLETED' },
+          data: { processingStatus: 'COMPLETED', processingError: null },
         });
       } catch (clipErr) {
         const message = clipErr instanceof Error ? clipErr.message : String(clipErr);
@@ -123,6 +179,8 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
           data: { processingStatus: 'FAILED', processingError: message },
         });
         console.error(`[clip.processor] Failed to process clip ${clipId}: ${message}`);
+      } finally {
+        await fs.rm(tmpDir, { recursive: true, force: true });
       }
 
       // Report progress (10% → 90% across clips)
@@ -134,7 +192,7 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
       });
     }
 
-    // Mark job complete. Pipeline stops here — the user triggers subtitle generation manually.
+    // Mark job complete
     await prisma.job.update({
       where: { id: jobId },
       data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },

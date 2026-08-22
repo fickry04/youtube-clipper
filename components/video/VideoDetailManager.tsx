@@ -77,8 +77,8 @@ export function VideoDetailManager({
   const router = useRouter();
 
   const [jobs, setJobs] = useState<JobInfo[]>(initialVideo.jobs);
-  const [downloading, setDownloading] = useState(false);
-  const [cuttingClips, setCuttingClips] = useState(false);
+  const [cuttingAll, setCuttingAll] = useState(false);
+  const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
   const [error, setError] = useState('');
 
   // Sync state with server-side props updates
@@ -87,7 +87,6 @@ export function VideoDetailManager({
   }, [initialVideo.jobs]);
 
   // Find active jobs
-  const downloadJob = jobs.find((j) => j.type === 'DOWNLOAD_VIDEO');
   const cutJob = jobs.find((j) => j.type === 'CREATE_CLIPS');
 
   const isJobRunning = jobs.some(
@@ -129,249 +128,178 @@ export function VideoDetailManager({
     return () => clearInterval(timer);
   }, [isJobRunning, videoId, router, jobs]);
 
-  // Handle Download trigger
-  const handleDownload = useCallback(async () => {
+  // Handle Cut Clips (single clip or all)
+  const handleCutClips = useCallback(async (targetClipId?: string) => {
     setError('');
-    setDownloading(true);
+    if (targetClipId) {
+      setActiveClipAction(targetClipId);
+    } else {
+      setCuttingAll(true);
+    }
+
     try {
-      const res = await fetch(`/api/videos/${videoId}/download`, { method: 'POST' });
+      const body = targetClipId ? JSON.stringify({ clipId: targetClipId }) : JSON.stringify({});
+      const res = await fetch(`/api/videos/${videoId}/clips`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body,
+      });
       const data = await res.json();
       if (!data.success) {
-        setError(data.error ?? 'Failed to start download.');
+        setError(data.error ?? 'Failed to start clip download.');
         return;
       }
       router.refresh();
     } catch {
       setError('Network error. Please try again.');
     } finally {
-      setDownloading(false);
+      setActiveClipAction(null);
+      setCuttingAll(false);
     }
   }, [videoId, router]);
 
-  // Handle Cut Clips trigger
-  const handleCutClips = useCallback(async () => {
-    setError('');
-    setCuttingClips(true);
-    try {
-      const res = await fetch(`/api/videos/${videoId}/clips`, { method: 'POST' });
-      const data = await res.json();
-      if (!data.success) {
-        setError(data.error ?? 'Failed to start clip cutting.');
-        return;
-      }
-      router.refresh();
-    } catch {
-      setError('Network error. Please try again.');
-    } finally {
-      setCuttingClips(false);
-    }
-  }, [videoId, router]);
-
-  const hasSourceVideo = initialVideo.assets.length > 0;
   const transcript = initialVideo.transcript;
   const segments = transcript?.segments ?? [];
   const hasTranscript = segments.length > 0;
   const viralAnalysis = initialVideo.viralAnalysis;
   const hasAnalysis = !!viralAnalysis && viralAnalysis.clips.length > 0;
 
-  // Determine if clips are currently being cut or are already cut
-  const clipsCutCompleted = hasAnalysis && viralAnalysis.clips.every(
-    (c) => c.processingStatus === 'COMPLETED'
-  );
+  const totalClips = viralAnalysis?.clips.length ?? 0;
+  const completedClipsCount = viralAnalysis?.clips.filter(
+    (c) => c.processingStatus === 'COMPLETED' && c.asset
+  ).length ?? 0;
+  const clipsCutCompleted = totalClips > 0 && completedClipsCount === totalClips;
 
   return (
     <div className="video-detail-manager">
-      {/* =========================================================
-          Downloader Section (Shown if no source video available)
-      ========================================================= */}
-      {!hasSourceVideo && (
-        <div className="download-card">
-          <div className="download-icon-wrap" aria-hidden="true">
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-              <polyline points="7 10 12 15 17 10" />
-              <line x1="12" y1="15" x2="12" y2="3" />
-            </svg>
-          </div>
-
-          <h2 className="download-title">Download Video Source</h2>
-          <p className="download-desc">
-            We need to download the source video from YouTube to our server storage before we can process and crop the clips.
-          </p>
-
-          {/* Download trigger or progress */}
-          {!downloadJob || downloadJob.status === 'FAILED' ? (
-            <button
-              id="download-video-btn"
-              onClick={handleDownload}
-              disabled={downloading || isJobRunning}
-              className="download-btn"
-            >
-              {downloading ? (
-                <>
-                  <span className="auth-spinner" aria-hidden="true" />
-                  Starting download…
-                </>
-              ) : (
-                <>
-                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                    <polyline points="7 10 12 15 17 10" />
-                    <line x1="12" y1="15" x2="12" y2="3" />
-                  </svg>
-                  Start Download
-                </>
-              )}
-            </button>
-          ) : (
-            <div className="progress-container">
-              <div className="progress-info">
-                <span className="progress-label">
-                  {downloadJob.status === 'QUEUED' ? 'Queued in worker…' : 'Downloading source video…'}
-                </span>
-                <span className="progress-value">{downloadJob.progress}%</span>
-              </div>
-              <div className="progress-track">
-                <div
-                  className="progress-fill"
-                  style={{ width: `${downloadJob.progress}%` }}
-                >
-                  <div className="progress-fill-stripes" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Job errors */}
-          {downloadJob?.status === 'FAILED' && downloadJob.error && (
-            <p className="form-error" style={{ marginTop: '12px' }} role="alert">
-              Download failed: {downloadJob.error}
-            </p>
-          )}
-
-          {error && (
-            <p className="form-error" style={{ marginTop: '12px' }} role="alert">
-              {error}
-            </p>
-          )}
+      {error && (
+        <div className="form-error" style={{ marginBottom: '16px' }} role="alert">
+          {error}
         </div>
       )}
 
       {/* =========================================================
-          Main Workspace Grid (Only shown when source is downloaded)
+          Main Workspace Grid (Always accessible immediately)
       ========================================================= */}
-      {hasSourceVideo && (
-        <div className="video-workspace-grid">
-          {/* Left Column: Video & Transcript */}
-          <div className="workspace-column">
-            <VideoTranscriptSection
+      <div className="video-workspace-grid">
+        {/* Left Column: Video & Transcript */}
+        <div className="workspace-column">
+          <VideoTranscriptSection
+            videoId={videoId}
+            youtubeId={initialVideo.youtubeId}
+            initialSegments={segments}
+            initialLanguageCode={transcript?.languageCode ?? ''}
+          />
+        </div>
+
+        {/* Right Column: Viral Analysis & Direct Clip Extraction */}
+        <div className="workspace-column">
+          <section className="dash-section">
+            <div className="dash-section-header">
+              <h2 className="dash-section-title">Viral Clip Analysis</h2>
+              {clipsCutCompleted ? (
+                <span className="header-badge-ready">✓ All {totalClips} Clips Ready</span>
+              ) : completedClipsCount > 0 ? (
+                <span className="header-badge-ready">{completedClipsCount}/{totalClips} Clips Ready</span>
+              ) : null}
+            </div>
+
+            {/* Trigger Analysis if not completed */}
+            <AnalyzeTrigger
               videoId={videoId}
-              youtubeId={initialVideo.youtubeId}
-              initialSegments={segments}
-              initialLanguageCode={transcript?.languageCode ?? ''}
+              hasTranscript={hasTranscript}
             />
-          </div>
 
-          {/* Right Column: Viral Analysis & Clipping */}
-          <div className="workspace-column">
-            <section className="dash-section">
-              <div className="dash-section-header">
-                <h2 className="dash-section-title">Viral Clip Analysis</h2>
-                {clipsCutCompleted && (
-                  <span className="header-badge-ready">✓ Clips Cut</span>
-                )}
-              </div>
-
-              {/* Trigger Analysis if not completed */}
-              <AnalyzeTrigger
-                videoId={videoId}
-                hasTranscript={hasTranscript}
-              />
-
-              {viralAnalysis && (
-                <div style={{ marginTop: '20px' }}>
-                  {/* Clip Cutting Card / Loading Bar */}
-                  {!clipsCutCompleted && (
-                    <div style={{ marginBottom: '24px' }}>
-                      {!cutJob || cutJob.status === 'FAILED' ? (
-                        <div className="cut-clips-card">
-                          <div className="cut-clips-info">
-                            <p className="cut-clips-title">Ready to Cut Clips</p>
-                            <p className="cut-clips-desc">
-                              Run the FFmpeg processor to extract and cut the {viralAnalysis.clips.length} identified clips.
-                            </p>
-                          </div>
-                          <button
-                            id="cut-clips-btn"
-                            onClick={handleCutClips}
-                            disabled={cuttingClips || isJobRunning}
-                            className="cut-clips-btn"
+            {viralAnalysis && (
+              <div style={{ marginTop: '20px' }}>
+                {/* Batch Cut Clips Card (When not all clips are cut) */}
+                {!clipsCutCompleted && (
+                  <div style={{ marginBottom: '24px' }}>
+                    {!cutJob || cutJob.status === 'FAILED' ? (
+                      <div className="cut-clips-card">
+                        <div className="cut-clips-info">
+                          <p className="cut-clips-title">Download &amp; Cut All Viral Clips</p>
+                          <p className="cut-clips-desc">
+                            Directly download the {viralAnalysis.clips.length} selected clip ranges ({viralAnalysis.clips.map((c) => `${c.startTime}-${c.endTime}`).join(', ')}) from YouTube without downloading the full video.
+                          </p>
+                        </div>
+                        <button
+                          id="cut-all-clips-btn"
+                          onClick={() => handleCutClips()}
+                          disabled={cuttingAll || isJobRunning}
+                          className="cut-clips-btn"
+                        >
+                          {cuttingAll ? (
+                            <>
+                              <span className="auth-spinner" aria-hidden="true" />
+                              Starting…
+                            </>
+                          ) : (
+                            <>
+                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                <circle cx="6" cy="6" r="3" />
+                                <circle cx="6" cy="18" r="3" />
+                                <line x1="20" y1="4" x2="8.12" y2="15.88" />
+                                <line x1="14.47" y1="14.48" x2="20" y2="20" />
+                                <line x1="8.12" y1="8.12" x2="12" y2="12" />
+                              </svg>
+                              Cut All Clips
+                            </>
+                          )}
+                        </button>
+                      </div>
+                    ) : (
+                      <div className="progress-container" style={{ maxWidth: '100%', marginBottom: '24px' }}>
+                        <div className="progress-info">
+                          <span className="progress-label">
+                            {cutJob.status === 'QUEUED' ? 'Queued in clipper worker…' : 'Downloading & cutting clip ranges…'}
+                          </span>
+                          <span className="progress-value">{cutJob.progress}%</span>
+                        </div>
+                        <div className="progress-track">
+                          <div
+                            className="progress-fill"
+                            style={{ width: `${cutJob.progress}%`, background: 'var(--accent-gradient-warm)' }}
                           >
-                            {cuttingClips ? (
-                              <>
-                                <span className="auth-spinner" aria-hidden="true" />
-                                Cutting…
-                              </>
-                            ) : (
-                              <>
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                  <circle cx="6" cy="6" r="3" />
-                                  <circle cx="6" cy="18" r="3" />
-                                  <line x1="20" y1="4" x2="8.12" y2="15.88" />
-                                  <line x1="14.47" y1="14.48" x2="20" y2="20" />
-                                  <line x1="8.12" y1="8.12" x2="12" y2="12" />
-                                </svg>
-                                Cut Clips
-                              </>
-                            )}
-                          </button>
-                        </div>
-                      ) : (
-                        <div className="progress-container" style={{ maxWidth: '100%', marginBottom: '24px' }}>
-                          <div className="progress-info">
-                            <span className="progress-label">
-                              {cutJob.status === 'QUEUED' ? 'Queued in clipper worker…' : 'FFmpeg cutting clips…'}
-                            </span>
-                            <span className="progress-value">{cutJob.progress}%</span>
-                          </div>
-                          <div className="progress-track">
-                            <div
-                              className="progress-fill"
-                              style={{ width: `${cutJob.progress}%`, background: 'var(--accent-gradient-warm)' }}
-                            >
-                              <div className="progress-fill-stripes" />
-                            </div>
+                            <div className="progress-fill-stripes" />
                           </div>
                         </div>
-                      )}
+                      </div>
+                    )}
 
-                      {cutJob?.status === 'FAILED' && cutJob.error && (
-                        <p className="form-error" role="alert">
-                          Clipping failed: {cutJob.error}
-                        </p>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Overall summary */}
-                  <div className="analysis-summary-card">
-                    <p className="analysis-summary-label">Overall Analysis</p>
-                    <p className="analysis-summary-text">{viralAnalysis.overallSummary}</p>
+                    {cutJob?.status === 'FAILED' && cutJob.error && (
+                      <p className="form-error" role="alert" style={{ marginTop: '8px' }}>
+                        Clipping failed: {cutJob.error}
+                      </p>
+                    )}
                   </div>
+                )}
 
-                  {/* Clips list */}
-                  <div className="clips-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-                    {viralAnalysis.clips.map((clip) => (
+                {/* Overall summary */}
+                <div className="analysis-summary-card">
+                  <p className="analysis-summary-label">Overall Analysis</p>
+                  <p className="analysis-summary-text">{viralAnalysis.overallSummary}</p>
+                </div>
+
+                {/* Clips list */}
+                <div className="clips-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+                  {viralAnalysis.clips.map((clip) => {
+                    const isThisClipActive = activeClipAction === clip.id;
+                    const isProcessing = clip.processingStatus === 'PROCESSING' || (cutJob?.status === 'PROCESSING' && clip.processingStatus === 'PENDING') || isThisClipActive;
+                    const isCompleted = clip.processingStatus === 'COMPLETED' && !!clip.asset;
+                    const isFailed = clip.processingStatus === 'FAILED';
+
+                    return (
                       <article
                         key={clip.id}
                         className="clip-card"
                         data-rank={clip.rank}
                       >
-                        {/* Left Column: Smartphone Video Mockup */}
+                        {/* Left Column: Video Mockup / Action */}
                         <div className="clip-card-left">
                           <div className="clip-video-mockup">
                             <div className="clip-video-area-inner">
-                              {clip.processingStatus === 'COMPLETED' && clip.asset ? (
+                              {isCompleted ? (
                                 <video
                                   controls
                                   className="clip-video-player"
@@ -379,19 +307,27 @@ export function VideoDetailManager({
                                   preload="metadata"
                                   aria-label={`Clip ${clip.rank}: ${clip.title}`}
                                 />
-                              ) : clip.processingStatus === 'PROCESSING' || (cutJob?.status === 'PROCESSING' && clip.processingStatus === 'PENDING') ? (
+                              ) : isProcessing ? (
                                 <div className="clip-video-processing">
                                   <span className="auth-spinner" aria-hidden="true" />
-                                  <span>Processing...</span>
+                                  <span style={{ fontSize: '0.8rem', marginTop: '6px' }}>Downloading clip…</span>
                                 </div>
-                              ) : clip.processingStatus === 'FAILED' ? (
+                              ) : isFailed ? (
                                 <div className="clip-video-failed">
-                                  <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>Failed</p>
+                                  <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>Download Failed</p>
                                   {clip.processingError && (
                                     <p className="clip-error-detail" style={{ fontSize: '0.7rem' }}>
                                       {clip.processingError}
                                     </p>
                                   )}
+                                  <button
+                                    onClick={() => handleCutClips(clip.id)}
+                                    disabled={isJobRunning || isThisClipActive}
+                                    className="form-submit-btn"
+                                    style={{ marginTop: '8px', fontSize: '0.75rem', padding: '4px 8px' }}
+                                  >
+                                    Retry
+                                  </button>
                                 </div>
                               ) : (
                                 <div className="clip-video-pending">
@@ -399,7 +335,30 @@ export function VideoDetailManager({
                                     <circle cx="12" cy="12" r="10" />
                                     <polyline points="12 6 12 12 16 14" />
                                   </svg>
-                                  <p style={{ fontSize: '0.8rem', marginTop: '4px' }}>Pending Cut</p>
+                                  <p style={{ fontSize: '0.8rem', margin: '4px 0 8px' }}>Not Downloaded</p>
+                                  <button
+                                    id={`cut-clip-${clip.id}-btn`}
+                                    onClick={() => handleCutClips(clip.id)}
+                                    disabled={isJobRunning || isThisClipActive}
+                                    className="cut-clips-btn"
+                                    style={{ fontSize: '0.75rem', padding: '6px 12px' }}
+                                  >
+                                    {isThisClipActive ? (
+                                      <>
+                                        <span className="auth-spinner" aria-hidden="true" />
+                                        Downloading…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                          <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                          <polyline points="7 10 12 15 17 10" />
+                                          <line x1="12" y1="15" x2="12" y2="3" />
+                                        </svg>
+                                        Download Clip
+                                      </>
+                                    )}
+                                  </button>
                                 </div>
                               )}
                             </div>
@@ -428,13 +387,29 @@ export function VideoDetailManager({
                             {clip.startTime} → {clip.endTime}
                           </div>
 
-                          {/* Subtitle Generation Action */}
-                          <div className="clip-subtitle-row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)' }}>
+                          {/* Actions: Subtitle & Direct Download */}
+                          <div className="clip-subtitle-row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <GenerateSubtitleButton
                               clipId={clip.id}
                               hasSubtitle={clip.subtitles.some((s) => s.format === 'srt')}
-                              hasClipAsset={!!clip.asset && clip.processingStatus === 'COMPLETED'}
+                              hasClipAsset={isCompleted}
                             />
+
+                            {isCompleted && (
+                              <a
+                                href={`/api/clips/${clip.id}/video`}
+                                download={`clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`}
+                                className="action-btn action-btn-secondary"
+                                style={{ fontSize: '0.8rem', padding: '6px 12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                  <polyline points="7 10 12 15 17 10" />
+                                  <line x1="12" y1="15" x2="12" y2="3" />
+                                </svg>
+                                Save MP4
+                              </a>
+                            )}
                           </div>
 
                           {/* Clip Card Body */}
@@ -497,14 +472,15 @@ export function VideoDetailManager({
                           </div>
                         </div>
                       </article>
-                    ))}
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-            </section>
-          </div>
+              </div>
+            )}
+          </section>
         </div>
-      )}
+      </div>
     </div>
   );
 }
+

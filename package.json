@@ -13,6 +13,7 @@
     "db:push": "prisma db push"
   },
   "dependencies": {
+    "@distube/ytdl-core": "^4.16.12",
     "@google/genai": "^2.17.1",
     "@prisma/adapter-pg": "^7.9.1",
     "@prisma/client": "^7.9.1",
@@ -28,6 +29,7 @@
     "react": "19.2.8",
     "react-dom": "19.2.8",
     "tfjs-node": "^1.0.0",
+    "youtube-dl-exec": "^3.1.12",
     "youtube-transcript-plus": "^2.0.1",
     "zod": "^4.4.3"
   },

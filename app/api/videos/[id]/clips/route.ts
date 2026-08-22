@@ -67,11 +67,11 @@ export async function GET(
 }
 
 // ---------------------------------------------------------------------------
-// POST — enqueue the FFmpeg clip-cutting worker job
+// POST — enqueue the clip-cutting worker job (downloads time slices via yt-dlp)
 // ---------------------------------------------------------------------------
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   let session;
@@ -83,11 +83,20 @@ export async function POST(
 
   const { id: videoId } = await params;
 
+  let body: { clipId?: string; clipIds?: string[] } = {};
+  try {
+    const text = await request.text();
+    if (text) {
+      body = JSON.parse(text);
+    }
+  } catch {
+    // Ignore invalid JSON if body wasn't JSON
+  }
+
   // Ownership + guard checks
   const video = await db.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
     include: {
-      assets: { where: { type: 'source' }, take: 1 },
       viralAnalysis: {
         include: { clips: { select: { id: true } } },
       },
@@ -101,13 +110,6 @@ export async function POST(
     );
   }
 
-  if (video.assets.length === 0) {
-    return Response.json(
-      { success: false, error: 'Video source not downloaded yet. Run the download step first.' },
-      { status: 422 }
-    );
-  }
-
   if (!video.viralAnalysis || video.viralAnalysis.clips.length === 0) {
     return Response.json(
       { success: false, error: 'No viral analysis found. Run analysis first.' },
@@ -115,16 +117,37 @@ export async function POST(
     );
   }
 
-  try {
-    const clipIds = video.viralAnalysis.clips.map((c) => c.id);
+  const validClipIds = new Set(video.viralAnalysis.clips.map((c) => c.id));
+  let targetClipIds: string[] = [];
 
+  if (body.clipId) {
+    if (!validClipIds.has(body.clipId)) {
+      return Response.json(
+        { success: false, error: `Clip ${body.clipId} not found in this video.` },
+        { status: 404 }
+      );
+    }
+    targetClipIds = [body.clipId];
+  } else if (Array.isArray(body.clipIds) && body.clipIds.length > 0) {
+    targetClipIds = body.clipIds.filter((id) => validClipIds.has(id));
+    if (targetClipIds.length === 0) {
+      return Response.json(
+        { success: false, error: 'None of the provided clip IDs belong to this video.' },
+        { status: 400 }
+      );
+    }
+  } else {
+    targetClipIds = video.viralAnalysis.clips.map((c) => c.id);
+  }
+
+  try {
     const job = await db.job.create({
       data: {
         userId: session.user.id,
         videoId,
         type: 'CREATE_CLIPS',
         status: 'QUEUED',
-        payload: { viralAnalysisId: video.viralAnalysis.id, clipIds },
+        payload: { viralAnalysisId: video.viralAnalysis.id, clipIds: targetClipIds },
       },
     });
 
@@ -135,12 +158,12 @@ export async function POST(
         videoId,
         userId: session.user.id,
         viralAnalysisId: video.viralAnalysis.id,
-        clipIds,
+        clipIds: targetClipIds,
       } satisfies CreateClipsPayload,
       { jobId: job.id }
     );
 
-    return Response.json({ success: true, jobId: job.id }, { status: 202 });
+    return Response.json({ success: true, jobId: job.id, clipIds: targetClipIds }, { status: 202 });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to enqueue clip job.';
     return Response.json({ success: false, error: message }, { status: 500 });

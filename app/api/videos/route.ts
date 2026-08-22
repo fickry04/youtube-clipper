@@ -2,6 +2,7 @@ import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { extractVideoId } from '@/lib/utils';
+import { fetchYoutubeVideoInfo } from '@/lib/youtube';
 import { z } from 'zod';
 
 const CreateVideoSchema = z.object({
@@ -79,14 +80,19 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  // Extract video metadata (title, duration, thumbnail, description)
+  const meta = await fetchYoutubeVideoInfo(youtubeUrl, youtubeId);
+
   try {
-    // Create the video record only — no job is enqueued yet.
-    // The user manually triggers each pipeline step from the video detail page.
     const video = await prisma.video.create({
       data: {
         youtubeUrl,
         youtubeId,
         projectId,
+        title: meta.title || youtubeId,
+        description: meta.description || undefined,
+        thumbnailUrl: meta.thumbnail || undefined,
+        duration: meta.duration_number > 0 ? meta.duration_number : undefined,
       },
     });
 
@@ -96,3 +102,4 @@ export async function POST(request: NextRequest): Promise<Response> {
     return Response.json({ success: false, error: message }, { status: 500 });
   }
 }
+
