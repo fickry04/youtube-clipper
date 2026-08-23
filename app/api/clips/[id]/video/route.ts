@@ -1,11 +1,11 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import { db } from '@/lib/prisma';
-import { getStorage, LocalStorageService } from '@/lib/storage';
+import { getStorage, StorageKeys } from '@/lib/storage';
 import * as fs from 'fs';
 
 export async function GET(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   let session;
@@ -16,6 +16,8 @@ export async function GET(
   }
 
   const { id: clipId } = await params;
+  const { searchParams } = new URL(request.url);
+  const wantSubtitled = searchParams.get('subtitled') === 'true' || searchParams.get('subtitled') === '1';
 
   // Ownership chain check
   const clip = await db.clip.findFirst({
@@ -42,7 +44,26 @@ export async function GET(
 
   try {
     const storage = getStorage();
-    const filePath = await storage.get(clip.asset.storagePath);
+    let targetKey = clip.asset.storagePath;
+
+    if (wantSubtitled) {
+      const subtitledKey = StorageKeys.clipSubtitled(session.user.id, clipId);
+      const legacyBurnedKey = `users/${session.user.id}/clips/${clipId}/clip_burned.mp4`;
+
+      if (await storage.exists(subtitledKey)) {
+        targetKey = subtitledKey;
+      } else if (await storage.exists(legacyBurnedKey)) {
+        targetKey = legacyBurnedKey;
+      }
+    } else {
+      // Clean original video
+      const originalKey = StorageKeys.clipVideo(session.user.id, clipId);
+      if (await storage.exists(originalKey)) {
+        targetKey = originalKey;
+      }
+    }
+
+    const filePath = await storage.get(targetKey);
 
     const stat = fs.statSync(filePath);
     const fileSize = stat.size;
@@ -51,7 +72,7 @@ export async function GET(
       'Content-Type': clip.asset.mimeType || 'video/mp4',
       'Content-Length': String(fileSize),
       'Accept-Ranges': 'bytes',
-      'Cache-Control': 'private, max-age=3600',
+      'Cache-Control': 'private, no-cache',
     });
 
     const stream = fs.createReadStream(filePath);

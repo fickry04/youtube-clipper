@@ -2,14 +2,12 @@
  * workers/processors/subtitle.processor.ts
  *
  * For a given clip:
- *   1. Load the transcript segments that overlap the clip's time range
- *   2. Build an SRT string with timestamps relative to the clip start
- *   3. Save the SRT to the Subtitle table and to storage
- *   4. Burn the subtitle into the clip video using FFmpeg (re-encode)
- *   5. Save the burned clip as a new VideoAsset (or update existing)
- *
- * The original clip (stream-copied) is preserved.
- * A new file `clip_burned.mp4` (or replaced if already exists) is produced.
+ *   1. Check that 9:16 vertical video exists
+ *   2. Load transcript segments that overlap the clip's time range
+ *   3. Build moving pill ASS captions (short 2-3 word dynamic chunks) + standard SRT
+ *   4. Burn moving pill captions into the 9:16 vertical video with FFmpeg
+ *   5. Save the burned vertical video to storage (`clip_vertical_subtitled.mp4`)
+ *   6. Persist SRT to database & storage ONLY after burning succeeds
  */
 
 import { Job } from 'bullmq';
@@ -22,14 +20,14 @@ import { burnSubtitle } from '../../lib/ffmpeg';
 import type { GenerateSubtitlePayload } from '../../lib/queue/jobs';
 
 // ---------------------------------------------------------------------------
-// SRT helpers
+// Helpers: SRT & ASS Moving Pill Captions
 // ---------------------------------------------------------------------------
 
 /**
  * Format seconds to SRT timestamp: HH:MM:SS,mmm
  */
 function toSrtTime(seconds: number): string {
-    const totalMs = Math.round(seconds * 1000);
+    const totalMs = Math.max(0, Math.round(seconds * 1000));
     const ms = totalMs % 1000;
     const totalSec = Math.floor(totalMs / 1000);
     const s = totalSec % 60;
@@ -44,22 +42,112 @@ function toSrtTime(seconds: number): string {
     );
 }
 
-interface SrtCue {
-    index: number;
+/**
+ * Format seconds to ASS timestamp: H:MM:SS.cc
+ */
+function toAssTime(seconds: number): string {
+    const totalCs = Math.max(0, Math.round(seconds * 100));
+    const cs = totalCs % 100;
+    const totalSec = Math.floor(totalCs / 100);
+    const s = totalSec % 60;
+    const totalMin = Math.floor(totalSec / 60);
+    const m = totalMin % 60;
+    const h = Math.floor(totalMin / 60);
+    return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}.${String(cs).padStart(2, '0')}`;
+}
+
+interface MovingPillCue {
     startSec: number;
     endSec: number;
     text: string;
 }
 
 /**
- * Build an SRT string from a list of cues.
+ * Generate punchy, word-chunked cues (2-3 words per pill) for dynamic short-form moving captions
  */
-function buildSrt(cues: SrtCue[]): string {
+function generateMovingPillCues(
+    overlappingSegments: Array<{ offset: number; duration: number; text: string }>,
+    clipStart: number,
+    clipDuration: number
+): MovingPillCue[] {
+    const cues: MovingPillCue[] = [];
+
+    for (const seg of overlappingSegments) {
+        const text = seg.text.replace(/\n/g, ' ').trim();
+        const words = text.split(/\s+/).filter(Boolean);
+        if (words.length === 0) continue;
+
+        const segStart = Math.max(0, seg.offset - clipStart);
+        const segEnd = Math.min(clipDuration, seg.offset + seg.duration - clipStart);
+        const totalDuration = Math.max(0.2, segEnd - segStart);
+
+        // Group into 2 to 3 words per chunk for energetic moving pill captions
+        const chunkSize = words.length <= 3 ? words.length : 3;
+        const chunks: string[] = [];
+        for (let i = 0; i < words.length; i += chunkSize) {
+            chunks.push(words.slice(i, i + chunkSize).join(' '));
+        }
+
+        const totalChars = chunks.reduce((acc, c) => acc + c.length, 0) || 1;
+        let currentStart = segStart;
+
+        for (let i = 0; i < chunks.length; i++) {
+            const chunk = chunks[i];
+            const weight = chunk.length / totalChars;
+            const chunkDuration = i === chunks.length - 1
+                ? Math.max(0.15, segEnd - currentStart)
+                : Math.max(0.2, totalDuration * weight);
+            const chunkEnd = Math.min(clipDuration, currentStart + chunkDuration);
+
+            cues.push({
+                startSec: currentStart,
+                endSec: Math.max(currentStart + 0.15, chunkEnd),
+                text: chunk.toUpperCase(),
+            });
+
+            currentStart = chunkEnd;
+        }
+    }
+
+    return cues;
+}
+
+/**
+ * Build standard SRT string from cues
+ */
+function buildSrt(cues: MovingPillCue[]): string {
     return cues
-        .map((c) =>
-            `${c.index}\n${toSrtTime(c.startSec)} --> ${toSrtTime(c.endSec)}\n${c.text}`
+        .map((c, idx) =>
+            `${idx + 1}\n${toSrtTime(c.startSec)} --> ${toSrtTime(c.endSec)}\n${c.text}`
         )
         .join('\n\n');
+}
+
+/**
+ * Build styled ASS script for moving pill captions positioned in the lower-middle of 9:16 screen
+ */
+function buildAss(cues: MovingPillCue[]): string {
+    const header = `[Script Info]
+Title: Moving Pill Subtitles (9:16 Vertical)
+ScriptType: v4.00+
+WrapStyle: 0
+ScaledBorderAndShadow: yes
+PlayResX: 720
+PlayResY: 1280
+
+[V4+ Styles]
+Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
+Style: MovingPill,Arial,28,&H00FFFFFF,&H000000FF,&H00000000,&HA0111111,-1,0,0,0,100,100,0.5,0,3,6,0,2,40,40,240,1
+
+[Events]
+Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
+`;
+
+    const events = cues.map((c) =>
+        `Dialogue: 0,${toAssTime(c.startSec)},${toAssTime(c.endSec)},MovingPill,,0,0,0,,{\\b1}${c.text}`
+    ).join('\n');
+
+    return header + events;
 }
 
 // ---------------------------------------------------------------------------
@@ -71,21 +159,30 @@ async function setSubtitleProgress(jobId: string, job: Job<GenerateSubtitlePaylo
     await prisma.job.update({
         where: { id: jobId },
         data: { progress },
-    }).catch(() => {});
+    }).catch(() => { });
 }
 
 export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promise<void> {
-    const { jobId, videoId, userId, clipId } = job.data;
+    const { jobId, userId, clipId } = job.data;
 
     await prisma.job.update({
         where: { id: jobId },
-        data: { status: 'PROCESSING', progress: 5, startedAt: new Date(), attempts: { increment: 1 } },
+        data: { status: 'PROCESSING', progress: 10, startedAt: new Date(), attempts: { increment: 1 } },
     });
 
-    await setSubtitleProgress(jobId, job, 5);
+    await setSubtitleProgress(jobId, job, 10);
 
     try {
-        // Load clip and its viralAnalysis (to reach videoId → transcript)
+        const storage = getStorage();
+
+        // 1. Verify 9:16 vertical video exists
+        const verticalKey = StorageKeys.clipVertical(userId, clipId);
+        const hasVertical = await storage.exists(verticalKey);
+        if (!hasVertical) {
+            throw new Error('Video vertikal 9:16 belum dibuat. Silakan lakukan Auto-Crop 9:16 (Face AI) terlebih dahulu.');
+        }
+
+        // 2. Load clip and transcript
         const clip = await prisma.clip.findUnique({
             where: { id: clipId },
             include: {
@@ -93,27 +190,27 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
                     include: {
                         video: {
                             include: {
-                                transcript: true
+                                transcript: true,
                             },
                         },
                     },
                 },
-                asset: true
+                asset: true,
             },
         });
 
-        if (!clip) throw new Error(`Clip ${clipId} not found.`);
+        if (!clip) throw new Error(`Clip ${clipId} tidak ditemukan.`);
 
         const transcript = clip.viralAnalysis.video.transcript;
         const segments = (transcript?.segments as unknown as Array<{ offset: number; duration: number; text: string; lang?: string }>) ?? [];
         if (!transcript || !Array.isArray(segments) || segments.length === 0) {
-            throw new Error('No transcript segments available for subtitle generation.');
+            throw new Error('Segmen transkrip tidak tersedia untuk pembuatan subtitle.');
         }
 
         const clipStart = clip.startSeconds;
         const clipEnd = clip.endSeconds;
 
-        // Filter segments that overlap the clip window
+        // Filter overlapping segments
         const overlapping = segments.filter((s) => {
             const segStart = s.offset;
             const segEnd = s.offset + s.duration;
@@ -121,104 +218,63 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
         });
 
         if (overlapping.length === 0) {
-            throw new Error('No transcript segments overlap the clip time range.');
+            throw new Error('Tidak ada transkrip yang cocok dalam rentang waktu klip ini.');
         }
 
-        await job.updateProgress(20);
+        await setSubtitleProgress(jobId, job, 30);
 
-        // Build SRT cues (timestamps relative to clip start)
-        const cues: SrtCue[] = overlapping.map((s, idx) => {
-            const cueStart = Math.max(0, s.offset - clipStart);
-            const cueEnd = Math.min(clip.durationSeconds, s.offset + s.duration - clipStart);
-            return {
-                index: idx + 1,
-                startSec: cueStart,
-                endSec: Math.max(cueStart + 0.1, cueEnd), // ensure non-zero duration
-                text: s.text,
-            };
-        });
-
+        // 3. Build moving pill cues, ASS and SRT content
+        const cues = generateMovingPillCues(overlapping, clipStart, clip.durationSeconds);
         const srtContent = buildSrt(cues);
-
-        await setSubtitleProgress(jobId, job, 35);
-
-        // Persist SRT to the Subtitle table
-        await prisma.subtitle.upsert({
-            where: { clipId_format: { clipId, format: 'srt' } },
-            update: { content: srtContent, updatedAt: new Date() },
-            create: { clipId, format: 'srt', content: srtContent },
-        });
-
-        // Save SRT file to storage
-        const storage = getStorage();
-        const srtKey = StorageKeys.clipSubtitle(userId, clipId);
-        await storage.saveBuffer(srtKey, srtContent, 'utf-8');
+        const assContent = buildAss(cues);
 
         await setSubtitleProgress(jobId, job, 50);
 
-        // Get paths for FFmpeg burn
-        const clipKey = StorageKeys.clipVideo(userId, clipId);
-        let clipVideoPath: string;
-        if (storage instanceof LocalStorageService) {
-            clipVideoPath = storage.getAbsolutePath(clipKey);
-        } else {
-            clipVideoPath = await storage.get(clipKey);
-        }
-
-        let srtPath: string;
-        if (storage instanceof LocalStorageService) {
-            srtPath = storage.getAbsolutePath(srtKey);
-        } else {
-            srtPath = await storage.get(srtKey);
-        }
-
-        // Determine output path for burned clip
-        // We write to a temp file first, then move it into storage
+        // 4. Burn subtitles into 9:16 vertical video with FFmpeg
         const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-sub-${clipId}-`));
-        const burnedTmp = path.join(tmpDir, 'burned.mp4');
+        const assTmpPath = path.join(tmpDir, 'moving_pill.ass');
+        const burnedVerticalTmp = path.join(tmpDir, 'burned_vertical.mp4');
+
+        await fs.writeFile(assTmpPath, assContent, 'utf-8');
+
+        let verticalPath: string;
+        if (storage instanceof LocalStorageService) {
+            verticalPath = storage.getAbsolutePath(verticalKey);
+        } else {
+            verticalPath = await storage.get(verticalKey);
+        }
+
+        await setSubtitleProgress(jobId, job, 65);
 
         try {
             await burnSubtitle({
-                videoPath: clipVideoPath,
-                srtPath,
-                outputPath: burnedTmp,
-                fontSize: 22,
+                videoPath: verticalPath,
+                srtPath: assTmpPath,
+                outputPath: burnedVerticalTmp,
             });
 
             await setSubtitleProgress(jobId, job, 85);
 
-            // For local storage, the burned file lives alongside the original
-            // We store it as a new key (clip_burned.mp4 equivalent)
-            // Reuse the same clip key — overwrite the original with the burned version
-            // so that the clip player always shows subtitles.
-            // NOTE: If you want to preserve the original, use a separate key.
-            if (storage instanceof LocalStorageService) {
-                const burnedKey = `users/${userId}/clips/${clipId}/clip_burned.mp4`;
-                await storage.save(burnedKey, burnedTmp);
+            // 5. Save burned vertical video to storage
+            const subtitledVerticalKey = StorageKeys.clipVerticalSubtitled(userId, clipId);
+            await storage.save(subtitledVerticalKey, burnedVerticalTmp);
 
-                // Update VideoAsset to point to the burned version
-                if (clip.asset) {
-                    await prisma.videoAsset.update({
-                        where: { id: clip.asset.id },
-                        data: { storagePath: burnedKey },
-                    });
-                }
-            } else {
-                // Remote storage: upload burned file
-                const burnedKey = `users/${userId}/clips/${clipId}/clip_burned.mp4`;
-                await storage.save(burnedKey, burnedTmp);
-                if (clip.asset) {
-                    await prisma.videoAsset.update({
-                        where: { id: clip.asset.id },
-                        data: { storagePath: burnedKey },
-                    });
-                }
-            }
+            // 6. Save SRT file to storage and persist Subtitle in database
+            const srtKey = StorageKeys.clipSubtitle(userId, clipId);
+            await storage.saveBuffer(srtKey, srtContent, 'utf-8');
+
+            await prisma.subtitle.upsert({
+                where: { clipId_format: { clipId, format: 'srt' } },
+                update: { content: srtContent, updatedAt: new Date() },
+                create: { clipId, format: 'srt', content: srtContent },
+            });
+
+            await setSubtitleProgress(jobId, job, 95);
         } finally {
             await fs.rm(tmpDir, { recursive: true, force: true });
         }
 
-        // Mark job complete
+        // 7. Mark job complete
         await prisma.job.update({
             where: { id: jobId },
             data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },

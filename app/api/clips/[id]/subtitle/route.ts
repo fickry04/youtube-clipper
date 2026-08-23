@@ -8,6 +8,7 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import { db } from '@/lib/prisma';
+import { getStorage, StorageKeys } from '@/lib/storage';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
 
@@ -84,7 +85,7 @@ export async function GET(
 // ---------------------------------------------------------------------------
 
 export async function POST(
-  _request: NextRequest,
+  request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {
   let session;
@@ -95,6 +96,16 @@ export async function POST(
   }
 
   const { id: clipId } = await params;
+
+  let aspectRatio: '16:9' | '9:16' | 'all' = 'all';
+  try {
+    const body = await request.json().catch(() => ({}));
+    if (body.aspectRatio === '16:9' || body.aspectRatio === '9:16' || body.aspectRatio === 'all') {
+      aspectRatio = body.aspectRatio;
+    }
+  } catch {
+    // Ignore JSON parsing errors and use default
+  }
 
   const clip = await db.clip.findFirst({
     where: {
@@ -118,7 +129,17 @@ export async function POST(
 
   if (!clip.asset) {
     return Response.json(
-      { success: false, error: 'Clip has no video asset yet. Cut the clip first.' },
+      { success: false, error: 'Klip belum memiliki video asset. Silakan download klip terlebih dahulu.' },
+      { status: 422 }
+    );
+  }
+
+  const storage = getStorage();
+  const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
+  const hasVertical = await storage.exists(verticalKey);
+  if (!hasVertical) {
+    return Response.json(
+      { success: false, error: 'Video vertikal 9:16 belum dibuat. Lakukan Auto-Crop 9:16 (Face AI) terlebih dahulu.' },
       { status: 422 }
     );
   }
@@ -132,7 +153,7 @@ export async function POST(
         videoId,
         type: 'GENERATE_SUBTITLE',
         status: 'QUEUED',
-        payload: { clipId },
+        payload: { clipId, aspectRatio },
       },
     });
 
@@ -143,6 +164,7 @@ export async function POST(
         videoId,
         userId: session.user.id,
         clipId,
+        aspectRatio,
       } satisfies GenerateSubtitlePayload,
       { jobId: job.id }
     );

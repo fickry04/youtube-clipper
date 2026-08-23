@@ -67,6 +67,12 @@ export const StorageKeys = {
 
   clipVertical: (userId: string, clipId: string) =>
     `users/${userId}/clips/${clipId}/clip_vertical.mp4`,
+
+  clipSubtitled: (userId: string, clipId: string) =>
+    `users/${userId}/clips/${clipId}/clip_subtitled.mp4`,
+
+  clipVerticalSubtitled: (userId: string, clipId: string) =>
+    `users/${userId}/clips/${clipId}/clip_vertical_subtitled.mp4`,
 };
 
 // =============================================================================

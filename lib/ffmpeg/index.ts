@@ -92,18 +92,19 @@ export async function cutVideo(opts: CutVideoOptions): Promise<void> {
 export interface BurnSubtitleOptions {
   /** Absolute path to the video clip */
   videoPath: string;
-  /** Absolute path to the SRT subtitle file */
+  /** Absolute path to the SRT or ASS subtitle file */
   srtPath: string;
   /** Absolute path where the output video with burned subtitles is written */
   outputPath: string;
   /**
    * Optional font size for the subtitles (default: 24).
+   * Ignored if srtPath is an .ass file with its own embedded styles.
    */
   fontSize?: number;
 }
 
 /**
- * Burn SRT subtitles into a video using the `subtitles` filter.
+ * Burn SRT or ASS subtitles into a video using the `subtitles` filter.
  * This re-encodes the video with libx264 / aac for maximum compatibility.
  */
 export async function burnSubtitle(opts: BurnSubtitleOptions): Promise<void> {
@@ -111,17 +112,29 @@ export async function burnSubtitle(opts: BurnSubtitleOptions): Promise<void> {
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-  // The subtitles filter path must use forward slashes and escape colons on Windows.
-  // On Linux/macOS the path is used as-is.
-  const escapedSrt = srtPath.replace(/\\/g, '/').replace(/:/g, '\\:');
+  const isAss = srtPath.toLowerCase().endsWith('.ass');
+
+  // FFmpeg filtergraph escaping:
+  // Escapes backslashes, colons, single quotes, brackets, spaces
+  const escapedPath = srtPath
+    .replace(/\\/g, '/')
+    .replace(/:/g, '\\:')
+    .replace(/'/g, "'\\\\''")
+    .replace(/\[/g, '\\[')
+    .replace(/\]/g, '\\]')
+    .replace(/ /g, '\\ ');
+
+  const filterString = isAss
+    ? `subtitles='${escapedPath}'`
+    : `subtitles='${escapedPath}':force_style='FontSize=${fontSize},Alignment=2,MarginV=40'`;
 
   await runFFmpeg([
     '-y',
     '-i', videoPath,
-    '-vf', `subtitles='${escapedSrt}':force_style='FontSize=${fontSize},Alignment=2,MarginV=20'`,
+    '-vf', filterString,
     '-c:v', 'libx264',
     '-preset', 'fast',
-    '-crf', '23',
+    '-crf', '22',
     '-c:a', 'aac',
     '-b:a', '128k',
     '-movflags', '+faststart',

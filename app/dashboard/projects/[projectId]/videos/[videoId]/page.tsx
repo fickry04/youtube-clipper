@@ -74,9 +74,12 @@ export default async function VideoDetailPage({
     (video.viralAnalysis?.clips ?? []).map(async (clip) => {
       const verticalKey = StorageKeys.clipVertical(session.user.id, clip.id);
       const hasVertical = await storage.exists(verticalKey);
+      const subtitledVerticalKey = StorageKeys.clipVerticalSubtitled(session.user.id, clip.id);
+      const hasVerticalSubtitled = await storage.exists(subtitledVerticalKey);
       return {
         ...clip,
         hasVertical,
+        hasVerticalSubtitled,
       };
     })
   );

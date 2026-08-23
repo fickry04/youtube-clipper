@@ -38,6 +38,7 @@ interface ClipInfo {
   subtitles: { id: string; format: string }[];
   faceDetections?: { id: string }[];
   hasVertical?: boolean;
+  hasVerticalSubtitled?: boolean;
 }
 
 interface VideoInfo {
@@ -81,6 +82,7 @@ export function VideoDetailManager({
   const [jobs, setJobs] = useState<JobInfo[]>(initialVideo.jobs);
   const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
   const [videoViews, setVideoViews] = useState<Record<string, 'original' | 'vertical'>>({});
+  const [subtitleViews, setSubtitleViews] = useState<Record<string, boolean>>({});
   const [error, setError] = useState('');
   const [dismissedToastIds, setDismissedToastIds] = useState<Record<string, boolean>>({});
   const [closingToastIds, setClosingToastIds] = useState<Record<string, boolean>>({});
@@ -97,6 +99,7 @@ export function VideoDetailManager({
   const cutJob = jobs.find((j) => j.type === 'CREATE_CLIPS');
   const faceJob = jobs.find((j) => j.type === 'FACE_DETECTION');
   const analyzeJob = jobs.find((j) => j.type === 'VIRAL_ANALYSIS');
+  const subtitleJob = jobs.find((j) => j.type === 'GENERATE_SUBTITLE');
 
   const isJobRunning = jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
@@ -509,6 +512,104 @@ export function VideoDetailManager({
             </div>
           </aside>
         )}
+
+        {/* Subtitle Generation & Burn-in Progress Toast */}
+        {subtitleJob && !dismissedToastIds[subtitleJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[subtitleJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Subtitle generation and burn-in progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {subtitleJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : subtitleJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-subtitle" style={{ background: 'rgba(34, 197, 94, 0.18)', color: '#4ade80', width: '22px', height: '22px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px', borderTopColor: '#4ade80' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {subtitleJob.status === 'COMPLETED'
+                    ? 'Subtitles Generated & Burned!'
+                    : subtitleJob.status === 'FAILED'
+                      ? 'Subtitle Generation Failed'
+                      : subtitleJob.status === 'QUEUED'
+                        ? 'Queued in Subtitle Worker…'
+                        : (subtitleJob.progress || 0) < 40
+                          ? 'Generating SRT Cues from Transcript…'
+                          : (subtitleJob.progress || 0) < 80
+                            ? 'Burning Subtitles into Video (FFmpeg)…'
+                            : 'Saving Subtitled Video Assets…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(subtitleJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {subtitleJob.status === 'COMPLETED'
+                    ? 'Subtitles created and burned into preview video successfully.'
+                    : subtitleJob.status === 'FAILED'
+                      ? (subtitleJob.error || 'Failed to generate subtitle')
+                      : (subtitleJob.progress || 0) < 40
+                        ? 'Aligning word timestamps with clip duration…'
+                        : (subtitleJob.progress || 0) < 80
+                          ? 'Re-encoding video with burned captions overlay…'
+                          : 'Finalizing subtitle stream and asset storage…'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#4ade80' }}>
+                  {subtitleJob.status === 'COMPLETED' ? '100%' : `${subtitleJob.progress || 0}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: subtitleJob.status === 'COMPLETED' ? '100%' : `${subtitleJob.progress || 5}%`,
+                    background:
+                      subtitleJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : subtitleJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #10b981, #34d399)',
+                  }}
+                >
+                  {subtitleJob.status !== 'COMPLETED' && subtitleJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
       </div>
 
       {/* =========================================================
@@ -578,8 +679,11 @@ export function VideoDetailManager({
                       ? videoViews[clip.id] !== 'original'
                       : false;
 
+                    const hasSubtitles = Boolean(clip.hasVerticalSubtitled);
+                    const isSubOn = subtitleViews[clip.id] !== undefined ? subtitleViews[clip.id] : hasSubtitles;
+
                     const currentVideoSrc = isVerticalView
-                      ? `/api/clips/${clip.id}/vertical`
+                      ? `/api/clips/${clip.id}/vertical${isSubOn && hasSubtitles ? '?subtitled=true' : ''}`
                       : `/api/clips/${clip.id}/video`;
 
                     return (
@@ -592,14 +696,34 @@ export function VideoDetailManager({
                         <div className="clip-card-left">
                           <div className={`clip-video-mockup ${isVerticalView ? 'mode-9-16' : 'mode-16-9'}`}>
                             {isCompleted && (
-                              <span className="clip-preview-ratio-badge">
-                                {isVerticalView ? '📱 9:16 Shorts' : '🖥️ 16:9 Original'}
-                              </span>
+                              <div className="clip-mockup-top-badges">
+                                <span className="clip-preview-ratio-badge">
+                                  {isVerticalView ? '📱 9:16 Shorts' : '🖥️ 16:9 Original'}
+                                </span>
+                                {isVerticalView && hasSubtitles && (
+                                  <button
+                                    type="button"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      setSubtitleViews((prev) => ({ ...prev, [clip.id]: !isSubOn }));
+                                    }}
+                                    className={`clip-subtitle-toggle-pill ${isSubOn ? 'sub-on' : 'sub-off'}`}
+                                    title={isSubOn ? 'Matikan subtitle 9:16 (tampilkan video bersih)' : 'Nyalakan subtitle 9:16 (tampilkan burned moving pill)'}
+                                  >
+                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect width="20" height="16" x="2" y="4" rx="2" />
+                                      <path d="M7 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H7" />
+                                      <path d="M15 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+                                    </svg>
+                                    <span>{isSubOn ? 'CC ON' : 'CC OFF'}</span>
+                                  </button>
+                                )}
+                              </div>
                             )}
                             <div className="clip-video-area-inner">
                               {isCompleted ? (
                                 <video
-                                  key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}`}
+                                  key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}-${isVerticalView && isSubOn && hasSubtitles ? 'sub' : 'clean'}`}
                                   controls
                                   className="clip-video-player"
                                   src={currentVideoSrc}
@@ -631,7 +755,7 @@ export function VideoDetailManager({
                               ) : (
                                 <div className="clip-video-pending">
                                   <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                    <circle cx="12" cy="12" r="10" />
+                                    <circle cx="12" cy="10" r="10" />
                                     <polyline points="12 6 12 12 16 14" />
                                   </svg>
                                   <p style={{ fontSize: '0.8rem', margin: '4px 0 8px' }}>Not Downloaded</p>
@@ -733,24 +857,24 @@ export function VideoDetailManager({
 
                               {clip.hasVertical && (
                                 <a
-                                  href={`/api/clips/${clip.id}/vertical`}
-                                  download={`clip_${clip.rank}_9-16_${clip.startTime.replace(':', '-')}.mp4`}
+                                  href={`/api/clips/${clip.id}/vertical${isSubOn && hasSubtitles ? '?subtitled=true' : ''}`}
+                                  download={`clip_${clip.rank}_9-16_${isSubOn && hasSubtitles ? 'subtitled_' : ''}${clip.startTime.replace(':', '-')}.mp4`}
                                   className="action-btn action-btn-download-vert"
-                                  title="Download video vertikal 9:16"
+                                  title={isSubOn && hasSubtitles ? "Download video vertikal 9:16 dengan subtitle" : "Download video vertikal 9:16"}
                                 >
                                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
                                     <polyline points="7 10 12 15 17 10" />
                                     <line x1="12" y1="15" x2="12" y2="3" />
                                   </svg>
-                                  <span>Save 9:16 MP4</span>
+                                  <span>Save 9:16 MP4 {isSubOn && hasSubtitles ? '(CC)' : ''}</span>
                                 </a>
                               )}
 
                               {isCompleted && (
                                 <a
                                   href={`/api/clips/${clip.id}/video`}
-                                  download={`clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`}
+                                  download={`clip_${clip.rank}_16-9_${clip.startTime.replace(':', '-')}.mp4`}
                                   className="action-btn action-btn-secondary action-btn-download-orig"
                                   title="Download video original 16:9"
                                 >
@@ -764,14 +888,39 @@ export function VideoDetailManager({
                               )}
                             </div>
 
-                            {/* Row 2: Subtitle & Captions (Di bawah, setelah Face Crop) */}
+                            {/* Row 2: Subtitle & Captions (Vertical 9:16 Moving Pill) */}
                             <div className="clip-action-row">
                               <div className="clip-action-group">
                                 <GenerateSubtitleButton
                                   clipId={clip.id}
-                                  hasSubtitle={clip.subtitles.some((s) => s.format === 'srt')}
+                                  hasSubtitle={hasSubtitles}
                                   hasClipAsset={isCompleted}
+                                  hasVertical={Boolean(clip.hasVertical)}
+                                  isJobRunning={isJobRunning}
+                                  onJobStarted={(newJob) => {
+                                    setJobs((prev) => [
+                                      newJob as JobInfo,
+                                      ...prev.filter((j) => j.id !== newJob.id),
+                                    ]);
+                                  }}
                                 />
+
+                                {clip.hasVertical && hasSubtitles && (
+                                  <button
+                                    type="button"
+                                    onClick={() => setSubtitleViews((prev) => ({ ...prev, [clip.id]: !isSubOn }))}
+                                    className={`clip-action-pill-btn ${isSubOn ? 'clip-btn-subtitle' : 'clip-btn-reprocess'}`}
+                                    style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                                    title={isSubOn ? 'Preview 9:16 sedang menampilkan subtitle (Klik untuk sembunyikan)' : 'Preview 9:16 tanpa subtitle (Klik untuk aktifkan subtitle)'}
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect width="20" height="16" x="2" y="4" rx="2" />
+                                      <path d="M7 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H7" />
+                                      <path d="M15 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
+                                    </svg>
+                                    <span>Subtitle (9:16): {isSubOn ? 'ON' : 'OFF'}</span>
+                                  </button>
+                                )}
                               </div>
                             </div>
                           </div>
