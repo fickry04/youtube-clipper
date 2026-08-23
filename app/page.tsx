@@ -1,3 +1,4 @@
+import Image from 'next/image';
 import Link from 'next/link';
 import styles from './page.module.css';
 
@@ -15,27 +16,14 @@ export default function HomePage() {
         <div className={styles.navInner}>
           {/* Logo */}
           <Link href="/" className={styles.navLogo} aria-label="YouTube video Clipper home">
-            <div className={styles.logoMark} aria-hidden="true">
-              <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="url(#g1)" opacity="0.9" />
-                <path d="M2 17l10 5 10-5" stroke="url(#g2)" strokeWidth="2" strokeLinecap="round" />
-                <path d="M2 12l10 5 10-5" stroke="url(#g3)" strokeWidth="2" strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="g1" x1="2" y1="7" x2="22" y2="12" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                  <linearGradient id="g2" x1="2" y1="17" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                  <linearGradient id="g3" x1="2" y1="12" x2="22" y2="17" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="YouTube Clipper Logo"
+              width={60}
+              height={40}
+              className={styles.logoImage}
+              priority
+            />
             <span className={styles.navLogoText}>Youtube Clipper</span>
           </Link>
 
@@ -247,27 +235,13 @@ export default function HomePage() {
       <footer className={styles.footer}>
         <div className={styles.footerInner}>
           <div className={styles.footerLogo}>
-            <div className={styles.logoMark} aria-hidden="true">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none">
-                <path d="M12 2L2 7l10 5 10-5-10-5z" fill="url(#gf1)" opacity="0.9" />
-                <path d="M2 17l10 5 10-5" stroke="url(#gf2)" strokeWidth="2" strokeLinecap="round" />
-                <path d="M2 12l10 5 10-5" stroke="url(#gf3)" strokeWidth="2" strokeLinecap="round" />
-                <defs>
-                  <linearGradient id="gf1" x1="2" y1="7" x2="22" y2="12" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                  <linearGradient id="gf2" x1="2" y1="17" x2="22" y2="22" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                  <linearGradient id="gf3" x1="2" y1="12" x2="22" y2="17" gradientUnits="userSpaceOnUse">
-                    <stop stopColor="#8b5cf6" />
-                    <stop offset="1" stopColor="#3b82f6" />
-                  </linearGradient>
-                </defs>
-              </svg>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="YouTube Clipper Logo"
+              width={22}
+              height={22}
+              className={styles.logoImage}
+            />
             <span className={styles.footerLogoText}>Youtube Clipper</span>
           </div>
           <p className={styles.footerCopy}>© {new Date().getFullYear()} YouTube Video Clipper. All rights reserved.</p>

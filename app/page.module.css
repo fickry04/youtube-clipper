@@ -133,6 +133,13 @@
 }
 
 /* ── Logo mark ── */
+.logoImage {
+  object-fit: contain;
+  border-radius: 8px;
+  flex-shrink: 0;
+  filter: drop-shadow(0 2px 8px rgba(139, 92, 246, 0.25));
+}
+
 .logoMark {
   width: 36px;
   height: 36px;

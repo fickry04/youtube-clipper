@@ -6,6 +6,11 @@ const PUBLIC_API_PREFIXES = [
   '/api/auth',       // Better Auth endpoints
 ];
 
+const AUTH_PAGE_PREFIXES = [
+  '/login',
+  '/register',
+];
+
 const PUBLIC_PAGE_PREFIXES = [
   '/login',
   '/register',
@@ -31,6 +36,29 @@ function isPublicRoute(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  // If user is already authenticated and visits /login or /register, redirect to /dashboard
+  const isAuthPage = AUTH_PAGE_PREFIXES.some(
+    (prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`)
+  );
+
+  if (isAuthPage) {
+    const hasSessionToken =
+      request.cookies.has('better-auth.session_token') ||
+      request.cookies.has('__Secure-better-auth.session_token');
+
+    if (hasSessionToken) {
+      try {
+        const session = await getSession();
+        if (session) {
+          return NextResponse.redirect(new URL('/dashboard', request.url));
+        }
+      } catch {
+        // Invalid or expired session, continue to auth page
+      }
+    }
+    return NextResponse.next();
+  }
 
   // Allow public routes through
   if (isPublicRoute(pathname)) {
