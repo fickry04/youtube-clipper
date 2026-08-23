@@ -3,6 +3,7 @@ import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
 import type { TranscriptSegment } from '@/lib/types';
+import { getStorage, StorageKeys } from '@/lib/storage';
 
 import { VideoDetailManager } from '@/components/video/VideoDetailManager';
 import { DeleteVideoButton } from '@/components/video/DeleteVideoButton';
@@ -49,6 +50,7 @@ export default async function VideoDetailPage({
             include: {
               asset: true,
               subtitles: { select: { id: true, format: true } },
+              faceDetections: { select: { id: true } },
             },
           },
         },
@@ -66,6 +68,28 @@ export default async function VideoDetailPage({
   if (!video) {
     notFound();
   }
+
+  const storage = getStorage();
+  const clipsWithVertical = await Promise.all(
+    (video.viralAnalysis?.clips ?? []).map(async (clip) => {
+      const verticalKey = StorageKeys.clipVertical(session.user.id, clip.id);
+      const hasVertical = await storage.exists(verticalKey);
+      return {
+        ...clip,
+        hasVertical,
+      };
+    })
+  );
+
+  const videoWithVertical = {
+    ...video,
+    viralAnalysis: video.viralAnalysis
+      ? {
+          ...video.viralAnalysis,
+          clips: clipsWithVertical,
+        }
+      : null,
+  };
 
   const transcript = video.transcript;
   const segments = (transcript?.segments as unknown as TranscriptSegment[]) ?? [];
@@ -202,7 +226,7 @@ export default async function VideoDetailPage({
           Video Detail Manager (Handles transcript, viral clips, cutting)
       ========================================================= */}
       <VideoDetailManager
-        initialVideo={video as any}
+        initialVideo={videoWithVertical as any}
         projectId={projectId}
         videoId={video.id}
       />

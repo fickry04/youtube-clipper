@@ -172,3 +172,33 @@ export async function cropVertical(opts: CropVerticalOptions): Promise<void> {
     outputPath,
   ]);
 }
+
+export interface CropVerticalDynamicOptions {
+  /** Absolute path to the source clip */
+  videoPath: string;
+  /** Absolute path for the output vertical clip */
+  outputPath: string;
+  /** Dynamic FFmpeg crop filter string (e.g. crop=w=...:h=...:x='...':y=0) */
+  cropFilter: string;
+}
+
+/**
+ * Crop a video clip dynamically based on a computed smooth face tracking filter.
+ */
+export async function cropVerticalDynamic(opts: CropVerticalDynamicOptions): Promise<void> {
+  const { videoPath, outputPath, cropFilter } = opts;
+
+  await fs.mkdir(path.dirname(outputPath), { recursive: true });
+
+  await runFFmpeg([
+    '-y',
+    '-i', videoPath,
+    '-vf', cropFilter,
+    '-c:v', 'libx264',
+    '-preset', 'fast',
+    '-crf', '22',
+    '-c:a', 'copy',
+    '-movflags', '+faststart',
+    outputPath,
+  ]);
+}

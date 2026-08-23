@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { VideoTranscriptSection } from './VideoTranscriptSection';
 import { AnalyzeTrigger } from './AnalyzeTrigger';
 import { GenerateSubtitleButton } from './GenerateSubtitleButton';
+import { CropFaceButton } from './CropFaceButton';
 
 interface JobInfo {
   id: string;
@@ -34,6 +35,8 @@ interface ClipInfo {
   weaknesses: string[];
   asset: { id: string; storagePath: string } | null;
   subtitles: { id: string; format: string }[];
+  faceDetections?: { id: string }[];
+  hasVertical?: boolean;
 }
 
 interface VideoInfo {
@@ -79,6 +82,7 @@ export function VideoDetailManager({
   const [jobs, setJobs] = useState<JobInfo[]>(initialVideo.jobs);
   const [cuttingAll, setCuttingAll] = useState(false);
   const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
+  const [videoViews, setVideoViews] = useState<Record<string, 'original' | 'vertical'>>({});
   const [error, setError] = useState('');
 
   // Sync state with server-side props updates
@@ -289,6 +293,11 @@ export function VideoDetailManager({
                     const isCompleted = clip.processingStatus === 'COMPLETED' && !!clip.asset;
                     const isFailed = clip.processingStatus === 'FAILED';
 
+                    const isVerticalView = videoViews[clip.id] === 'vertical' && !!clip.hasVertical;
+                    const currentVideoSrc = isVerticalView
+                      ? `/api/clips/${clip.id}/vertical`
+                      : `/api/clips/${clip.id}/video`;
+
                     return (
                       <article
                         key={clip.id}
@@ -298,12 +307,17 @@ export function VideoDetailManager({
                         {/* Left Column: Video Mockup / Action */}
                         <div className="clip-card-left">
                           <div className="clip-video-mockup">
-                            <div className="clip-video-area-inner">
+                            <div
+                              className="clip-video-area-inner"
+                              style={isVerticalView ? { display: 'flex', justifyContent: 'center', background: '#000' } : undefined}
+                            >
                               {isCompleted ? (
                                 <video
+                                  key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}`}
                                   controls
                                   className="clip-video-player"
-                                  src={`/api/clips/${clip.id}/video`}
+                                  style={isVerticalView ? { maxHeight: '280px', width: 'auto', aspectRatio: '9/16', objectFit: 'contain' } : undefined}
+                                  src={currentVideoSrc}
                                   preload="metadata"
                                   aria-label={`Clip ${clip.rank}: ${clip.title}`}
                                 />
@@ -387,20 +401,44 @@ export function VideoDetailManager({
                             {clip.startTime} → {clip.endTime}
                           </div>
 
-                          {/* Actions: Subtitle & Direct Download */}
-                          <div className="clip-subtitle-row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
+                          {/* Actions: Subtitle, Face Crop & Direct Downloads */}
+                          <div className="clip-subtitle-row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
                             <GenerateSubtitleButton
                               clipId={clip.id}
                               hasSubtitle={clip.subtitles.some((s) => s.format === 'srt')}
                               hasClipAsset={isCompleted}
                             />
 
+                            <CropFaceButton
+                              clipId={clip.id}
+                              hasClipAsset={isCompleted}
+                              hasVertical={!!clip.hasVertical}
+                              isJobRunning={isJobRunning}
+                            />
+
+                            {clip.hasVertical && (
+                              <button
+                                onClick={() => setVideoViews((prev) => ({
+                                  ...prev,
+                                  [clip.id]: prev[clip.id] === 'vertical' ? 'original' : 'vertical',
+                                }))}
+                                className="action-btn action-btn-secondary"
+                                style={{ fontSize: '0.8rem', padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                title="Ganti tampilan player antara 16:9 dan 9:16"
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                                </svg>
+                                <span>{videoViews[clip.id] === 'vertical' ? 'View 16:9' : 'View 9:16'}</span>
+                              </button>
+                            )}
+
                             {isCompleted && (
                               <a
                                 href={`/api/clips/${clip.id}/video`}
                                 download={`clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`}
                                 className="action-btn action-btn-secondary"
-                                style={{ fontSize: '0.8rem', padding: '6px 12px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                                style={{ fontSize: '0.8rem', padding: '6px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                               >
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                                   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
@@ -408,6 +446,21 @@ export function VideoDetailManager({
                                   <line x1="12" y1="15" x2="12" y2="3" />
                                 </svg>
                                 Save MP4
+                              </a>
+                            )}
+
+                            {clip.hasVertical && (
+                              <a
+                                href={`/api/clips/${clip.id}/vertical`}
+                                download={`clip_${clip.rank}_9-16_${clip.startTime.replace(':', '-')}.mp4`}
+                                className="action-btn action-btn-secondary"
+                                style={{ fontSize: '0.8rem', padding: '6px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)', color: '#60a5fa' }}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                                  <path d="M12 18h.01" />
+                                </svg>
+                                Save 9:16 MP4
                               </a>
                             )}
                           </div>

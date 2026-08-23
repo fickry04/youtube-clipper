@@ -10,6 +10,7 @@ import { Worker } from 'bullmq';
 import { getRedisConnection, QUEUE_NAMES } from '../lib/queue';
 import { processClips } from './processors/clip.processor';
 import { processSubtitle } from './processors/subtitle.processor';
+import { processFaceDetection } from './processors/face.processor';
 
 // ---------------------------------------------------------------------------
 // Worker configuration
@@ -33,6 +34,12 @@ const subtitleWorker = new Worker(
   { connection, concurrency: 1 } // serial: FFmpeg is CPU-heavy
 );
 
+const faceWorker = new Worker(
+  QUEUE_NAMES.FACE_DETECTION,
+  async (job) => processFaceDetection(job as Parameters<typeof processFaceDetection>[0]),
+  { connection, concurrency: 1 } // serial: AI model & FFmpeg are CPU-heavy
+);
+
 // ---------------------------------------------------------------------------
 // Lifecycle logging
 // ---------------------------------------------------------------------------
@@ -40,6 +47,7 @@ const subtitleWorker = new Worker(
 const workers = [
   { worker: clipWorker, name: 'clip' },
   { worker: subtitleWorker, name: 'subtitle' },
+  { worker: faceWorker, name: 'face' },
 ];
 
 for (const { worker, name } of workers) {
