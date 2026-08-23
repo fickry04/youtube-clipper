@@ -6,13 +6,15 @@ import { useRouter } from 'next/navigation';
 interface AnalyzeTriggerProps {
   videoId: string;
   hasTranscript: boolean;
+  hasAnalysis?: boolean;
   onJobStarted?: (newJob: any) => void;
 }
 
-export function AnalyzeTrigger({ videoId, hasTranscript, onJobStarted }: AnalyzeTriggerProps) {
+export function AnalyzeTrigger({ videoId, hasTranscript, hasAnalysis, onJobStarted }: AnalyzeTriggerProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
+  const isAnalyzed = Boolean(hasAnalysis);
 
   const handleAnalyze = useCallback(async () => {
     setIsLoading(true);
@@ -98,7 +100,8 @@ export function AnalyzeTrigger({ videoId, hasTranscript, onJobStarted }: Analyze
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
             </svg>
-            Analyze Viral Clips
+            {/*If has analyze then text is Re-Analyze Viral Clips otherwise Analyze Viral Clips */}
+            {isAnalyzed ? 'Re-Analyze Viral Clips' : 'Analyze Viral Clips'}
           </>
         )}
       </button>

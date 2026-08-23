@@ -44,6 +44,7 @@ export async function GET(
             status: true,
             progress: true,
             error: true,
+            payload: true,
             createdAt: true,
             completedAt: true,
           },

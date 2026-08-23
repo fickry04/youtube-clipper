@@ -250,10 +250,13 @@ export function computeSmoothCropTrajectory(
   cropFilter: string;
   detections: Array<{ timestamp: number; x: number; y: number; width: number; height: number; confidence: number }>;
 } {
-  const { width: vidW, height: vidH, duration: vidDuration } = videoInfo;
+  const { width: vidW, height: vidH } = videoInfo;
 
-  // 9:16 aspect ratio: crop width = vidH * 9 / 16
-  const cropW = Math.round(vidH * (9 / 16));
+  // 9:16 aspect ratio: crop width = vidH * 9 / 16 (ensure even width and height for libx264)
+  let cropW = Math.round(vidH * (9 / 16));
+  if (cropW % 2 !== 0) cropW -= 1;
+  let targetH = vidH;
+  if (targetH % 2 !== 0) targetH -= 1;
   const maxCropX = Math.max(0, vidW - cropW);
 
   const allDetections: Array<{ timestamp: number; x: number; y: number; width: number; height: number; confidence: number }> = [];
@@ -261,7 +264,7 @@ export function computeSmoothCropTrajectory(
   if (frames.length === 0) {
     const defaultX = Math.round(maxCropX / 2);
     return {
-      cropFilter: `crop=${cropW}:${vidH}:${defaultX}:0`,
+      cropFilter: `crop=w=${cropW}:h=${targetH}:x=${defaultX}:y=0:exact=1`,
       detections: [],
     };
   }
@@ -290,7 +293,6 @@ export function computeSmoothCropTrajectory(
     const faces = frame.faces;
 
     if (faces.length === 0) {
-      // Keep last speaker center
       const targetX = Math.max(0, Math.min(maxCropX, lastSpeakerCenter * vidW - cropW / 2));
       rawTargetPoints.push({ timestamp: frame.timestamp, cropX: targetX });
       continue;
@@ -303,8 +305,7 @@ export function computeSmoothCropTrajectory(
       continue;
     }
 
-    // Multiple faces: determine who is speaking
-    // Look ahead/behind in a rolling window of ±1.5s to compute lip movement variance
+    // Multiple faces: determine active speaker
     const windowStart = Math.max(0, i - 3);
     const windowEnd = Math.min(frames.length - 1, i + 3);
 
@@ -312,7 +313,6 @@ export function computeSmoothCropTrajectory(
     let maxSpeakingScore = -1;
 
     for (const face of faces) {
-      // Collect openness history of faces near this face's position
       const opennessValues: number[] = [face.lipOpenness];
 
       for (let w = windowStart; w <= windowEnd; w++) {
@@ -324,10 +324,9 @@ export function computeSmoothCropTrajectory(
         if (match) opennessValues.push(match.lipOpenness);
       }
 
-      // Variance of openness represents dynamic talking
       const avg = opennessValues.reduce((a, b) => a + b, 0) / opennessValues.length;
       const variance = opennessValues.reduce((a, b) => a + Math.pow(b - avg, 2), 0) / opennessValues.length;
-      const sizeBonus = (face.width * face.height) * 0.5; // slight preference for closer/larger speaker
+      const sizeBonus = (face.width * face.height) * 0.5;
       const speakingScore = (variance * 100) + sizeBonus;
 
       if (speakingScore > maxSpeakingScore) {
@@ -336,81 +335,134 @@ export function computeSmoothCropTrajectory(
       }
     }
 
-    // Apply speaker switching hysteresis (prevent rapid back-and-forth jitter)
+    // Speaker switching hysteresis (hold speaker focus for at least 1.5s)
     if (frame.timestamp >= activeSpeakerHoldUntil || Math.abs(bestSpeaker.centerX - lastSpeakerCenter) < 0.1) {
       lastSpeakerCenter = bestSpeaker.centerX;
-      activeSpeakerHoldUntil = frame.timestamp + 1.2; // hold speaker focus for at least 1.2s
+      activeSpeakerHoldUntil = frame.timestamp + 1.5;
     }
 
     const targetX = Math.max(0, Math.min(maxCropX, lastSpeakerCenter * vidW - cropW / 2));
     rawTargetPoints.push({ timestamp: frame.timestamp, cropX: targetX });
   }
 
-  // 3. Smooth the trajectory (Exponential Moving Average + Deadzone Filter)
-  // This removes camera jitters and gives a smooth, cinematic camera pan between speakers
-  const smoothedPoints: Array<{ timestamp: number; cropX: number }> = [];
-  let currentSmoothX = rawTargetPoints[0]?.cropX ?? maxCropX / 2;
-  const alpha = 0.18; // responsiveness vs smoothness (0.15 - 0.25 is sweet spot)
-  const deadzone = cropW * 0.04; // don't move camera for micro-head tilts (< 4% of crop width)
+  // 3. Segment-based camera positioning (Cinematic Shot Detection)
+  // Instead of wobbling on every minor movement, camera holds steady on the speaker
+  // and only pans smoothly when the speaker or scene moves beyond the deadzone.
+  const deadzone = cropW * 0.08; // 8% deadzone
+  const shots: Array<{ start: number; end: number; cropX: number }> = [];
 
-  for (const pt of rawTargetPoints) {
-    const diff = pt.cropX - currentSmoothX;
-    if (Math.abs(diff) > deadzone) {
-      currentSmoothX += diff * alpha;
+  let currentShot = {
+    start: rawTargetPoints[0].timestamp,
+    end: rawTargetPoints[0].timestamp,
+    cropX: Math.round(rawTargetPoints[0].cropX),
+  };
+
+  for (let i = 1; i < rawTargetPoints.length; i++) {
+    const pt = rawTargetPoints[i];
+    if (Math.abs(pt.cropX - currentShot.cropX) <= deadzone) {
+      currentShot.end = pt.timestamp;
+    } else {
+      shots.push(currentShot);
+      currentShot = {
+        start: pt.timestamp,
+        end: pt.timestamp,
+        cropX: Math.round(pt.cropX),
+      };
     }
-    // Clamp
-    currentSmoothX = Math.max(0, Math.min(maxCropX, currentSmoothX));
-    smoothedPoints.push({ timestamp: pt.timestamp, cropX: Math.round(currentSmoothX) });
+  }
+  shots.push(currentShot);
+
+  // 4. Merge transient / micro-shots (< 1.2s) with neighboring dominant shot
+  const stableShots: Array<{ start: number; end: number; cropX: number }> = [];
+  for (const shot of shots) {
+    if (stableShots.length === 0) {
+      stableShots.push(shot);
+      continue;
+    }
+    const prev = stableShots[stableShots.length - 1];
+    if (shot.end - shot.start < 1.2) {
+      // Short fluctuation: extend previous shot
+      prev.end = shot.end;
+    } else if (Math.abs(shot.cropX - prev.cropX) <= deadzone) {
+      // Nearly identical position: merge
+      prev.end = shot.end;
+    } else {
+      stableShots.push(shot);
+    }
   }
 
-  // 4. Build FFmpeg piecewise linear expression for dynamic crop
-  // x = 'if(lte(t, t1), x0 + (x1-x0)*(t-t0)/(t1-t0), ...)'
-  if (smoothedPoints.length <= 1) {
-    const singleX = smoothedPoints[0]?.cropX ?? Math.round(maxCropX / 2);
+  // 5. Hard decimation cap for FFmpeg expression safety (Max 20 shots)
+  while (stableShots.length > 20) {
+    let minJumpIdx = 0;
+    let minJump = Infinity;
+    for (let i = 0; i < stableShots.length - 1; i++) {
+      const jump = Math.abs(stableShots[i + 1].cropX - stableShots[i].cropX);
+      if (jump < minJump) {
+        minJump = jump;
+        minJumpIdx = i;
+      }
+    }
+    stableShots[minJumpIdx].end = stableShots[minJumpIdx + 1].end;
+    stableShots.splice(minJumpIdx + 1, 1);
+  }
+
+  // 6. Single shot case: return simple static crop
+  if (stableShots.length <= 1) {
+    const singleX = stableShots[0]?.cropX ?? Math.round(maxCropX / 2);
     return {
-      cropFilter: `crop=${cropW}:${vidH}:${singleX}:0`,
+      cropFilter: `crop=w=${cropW}:h=${targetH}:x=${singleX}:y=0:exact=1`,
       detections: allDetections,
     };
   }
 
-  // Build piecewise linear interpolation expression
-  // For FFmpeg expression length limit safety, compress consecutive points with almost same X
-  const compressed: Array<{ timestamp: number; cropX: number }> = [];
-  for (let i = 0; i < smoothedPoints.length; i++) {
-    const curr = smoothedPoints[i];
-    if (i === 0 || i === smoothedPoints.length - 1) {
-      compressed.push(curr);
+  // 7. Build timeline with smooth pan transitions between shots
+  interface TimelineSegment {
+    t0: number;
+    t1: number;
+    x0: number;
+    x1: number;
+    isPan: boolean;
+  }
+
+  const timeline: TimelineSegment[] = [];
+  for (let i = 0; i < stableShots.length; i++) {
+    const shot = stableShots[i];
+    if (i === 0) {
+      timeline.push({ t0: 0, t1: shot.end, x0: shot.cropX, x1: shot.cropX, isPan: false });
     } else {
-      const prev = compressed[compressed.length - 1];
-      const next = smoothedPoints[i + 1];
-      // Keep if there's significant movement or directional change
-      if (Math.abs(curr.cropX - prev.cropX) > 2 || Math.abs(next.cropX - curr.cropX) > 2) {
-        compressed.push(curr);
+      const prev = stableShots[i - 1];
+      const panDuration = Math.min(0.75, Math.max(0.3, (shot.start - prev.end) || 0.5));
+      const panStart = Math.max(0, shot.start - panDuration);
+      
+      if (timeline.length > 0) {
+        timeline[timeline.length - 1].t1 = panStart;
       }
+      
+      // Smooth camera pan from prev to current
+      timeline.push({ t0: panStart, t1: shot.start, x0: prev.cropX, x1: shot.cropX, isPan: true });
+      // Steady hold on current speaker
+      timeline.push({ t0: shot.start, t1: shot.end, x0: shot.cropX, x1: shot.cropX, isPan: false });
     }
   }
 
-  // Build nested if-expression for FFmpeg
-  // Example: if(lte(t, 0.5), 100 + (120-100)*(t-0.0)/0.5, if(lte(t, 1.0), ...))
-  let expr = `${compressed[compressed.length - 1].cropX}`;
+  // 8. Build safe, concise FFmpeg nested if-expression
+  let expr = `${timeline[timeline.length - 1].x1}`;
 
-  for (let i = compressed.length - 2; i >= 0; i--) {
-    const p0 = compressed[i];
-    const p1 = compressed[i + 1];
-    const t0 = p0.timestamp.toFixed(2);
-    const t1 = p1.timestamp.toFixed(2);
-    const dt = (p1.timestamp - p0.timestamp).toFixed(2);
-    const x0 = p0.cropX;
-    const dx = p1.cropX - p0.cropX;
+  for (let i = timeline.length - 1; i >= 0; i--) {
+    const seg = timeline[i];
+    const t0 = seg.t0.toFixed(2);
+    const t1 = seg.t1.toFixed(2);
+    const dt = (seg.t1 - seg.t0).toFixed(2);
+    const dx = seg.x1 - seg.x0;
 
-    if (parseFloat(dt) <= 0.01 || dx === 0) {
-      expr = `if(lte(t,${t1}),${x0},${expr})`;
+    if (!seg.isPan || dx === 0 || parseFloat(dt) <= 0.05) {
+      expr = `if(lte(t,${t1}),${seg.x0},${expr})`;
     } else {
-      expr = `if(lte(t,${t1}),${x0}+(${dx})*(t-${t0})/${dt},${expr})`;
+      expr = `if(lte(t,${t1}),${seg.x0}+(${dx})*(t-${t0})/${dt},${expr})`;
     }
   }
 
-  const cropFilter = `crop=w=${cropW}:h=${vidH}:x='min(max(0,${expr}),${maxCropX})':y=0:exact=1`;
+  const cropFilter = `crop=w=${cropW}:h=${targetH}:x='min(max(0,${expr}),${maxCropX})':y=0:exact=1`;
 
   return {
     cropFilter,

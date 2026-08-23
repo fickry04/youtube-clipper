@@ -154,11 +154,11 @@ export async function cropVertical(opts: CropVerticalOptions): Promise<void> {
 
   await fs.mkdir(path.dirname(outputPath), { recursive: true });
 
-  // Crop to 9:16 from the input width/height.
-  // out_w = in_h * 9/16, centred horizontally.
+  // Crop to 9:16 from the input width/height (forced to even dimensions for libx264).
+  // out_w = trunc(in_h*9/16/2)*2, out_h = trunc(in_h/2)*2
   const cropFilter =
-    `crop=in_h*9/16:in_h:` +
-    `(in_w - in_h*9/16)*${xCenterNorm}:0`;
+    `crop=trunc(in_h*9/16/2)*2:trunc(in_h/2)*2:` +
+    `(in_w - trunc(in_h*9/16/2)*2)*${xCenterNorm}:0`;
 
   await runFFmpeg([
     '-y',

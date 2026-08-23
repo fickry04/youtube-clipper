@@ -13,6 +13,7 @@ interface JobInfo {
   status: string;
   progress: number;
   error: string | null;
+  payload?: any;
   createdAt: Date | string;
   completedAt: Date | string | null;
 }
@@ -193,6 +194,7 @@ export function VideoDetailManager({
             status: 'QUEUED',
             progress: 5,
             error: null,
+            payload: { clipIds: [targetClipId] },
             createdAt: new Date().toISOString(),
             completedAt: null,
           },
@@ -539,6 +541,7 @@ export function VideoDetailManager({
             <AnalyzeTrigger
               videoId={videoId}
               hasTranscript={hasTranscript}
+              hasAnalysis={Boolean(viralAnalysis)}
               onJobStarted={(newJob) => {
                 setJobs((prev) => [
                   newJob as JobInfo,
@@ -558,8 +561,15 @@ export function VideoDetailManager({
                 {/* Clips list */}
                 <div className="clips-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   {viralAnalysis.clips.map((clip) => {
-                    const isThisClipActive = activeClipAction === clip.id;
-                    const isProcessing = clip.processingStatus === 'PROCESSING' || (cutJob?.status === 'PROCESSING' && clip.processingStatus === 'PENDING') || isThisClipActive;
+                    const isThisClipInCutJob =
+                      cutJob &&
+                      (cutJob.status === 'QUEUED' || cutJob.status === 'PROCESSING') &&
+                      (Array.isArray((cutJob.payload as any)?.clipIds)
+                        ? (cutJob.payload as any).clipIds.includes(clip.id)
+                        : (cutJob.payload as any)?.clipId === clip.id);
+
+                    const isThisClipActive = activeClipAction === clip.id || Boolean(isThisClipInCutJob);
+                    const isProcessing = clip.processingStatus === 'PROCESSING' || isThisClipActive;
                     const isCompleted = clip.processingStatus === 'COMPLETED' && !!clip.asset;
                     const isFailed = clip.processingStatus === 'FAILED';
 
