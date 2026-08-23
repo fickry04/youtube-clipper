@@ -20,15 +20,23 @@ import { cropVerticalDynamic } from '../../lib/ffmpeg';
 import { detectFacesInVideo, computeSmoothCropTrajectory } from '../../lib/face/face-tracker';
 import type { FaceDetectionPayload } from '../../lib/queue/jobs';
 
+async function setFaceProgress(jobId: string, job: Job<FaceDetectionPayload>, progress: number) {
+  await job.updateProgress(progress);
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { progress },
+  }).catch(() => {});
+}
+
 export async function processFaceDetection(job: Job<FaceDetectionPayload>): Promise<void> {
   const { jobId, userId, clipId } = job.data;
 
   await prisma.job.update({
     where: { id: jobId },
-    data: { status: 'PROCESSING', startedAt: new Date(), attempts: { increment: 1 } },
+    data: { status: 'PROCESSING', progress: 5, startedAt: new Date(), attempts: { increment: 1 } },
   });
 
-  await job.updateProgress(5);
+  await setFaceProgress(jobId, job, 5);
 
   try {
     const clip = await prisma.clip.findUnique({
@@ -53,7 +61,7 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
       clipVideoPath = await storage.get(clipKey);
     }
 
-    await job.updateProgress(15);
+    await setFaceProgress(jobId, job, 15);
 
     // 1. Detect faces and landmarks across video frames
     console.log(`[face.processor] Analyzing faces and active speakers for clip ${clipId}...`);
@@ -63,19 +71,17 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
       async (processed, total) => {
         if (processed % 5 === 0 || processed === total) {
           const progress = 15 + Math.round((processed / total) * 35);
-          await job.updateProgress(progress);
+          await setFaceProgress(jobId, job, progress);
         }
       }
     );
 
-    await job.updateProgress(50);
+    await setFaceProgress(jobId, job, 50);
 
     // 2. Compute smooth active-speaker framing trajectory
     const { cropFilter, detections } = computeSmoothCropTrajectory(frames, videoInfo);
 
-    // console.log(`[face.processor] Computed crop filter: ${cropFilter}`);
-
-    await job.updateProgress(65);
+    await setFaceProgress(jobId, job, 65);
 
     // 3. Persist face detection points to database
     if (detections.length > 0) {
@@ -93,7 +99,7 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
       });
     }
 
-    await job.updateProgress(75);
+    await setFaceProgress(jobId, job, 75);
 
     // 4. Render 9:16 vertical crop with FFmpeg
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-face-crop-${clipId}-`));
@@ -106,7 +112,7 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
         cropFilter,
       });
 
-      await job.updateProgress(90);
+      await setFaceProgress(jobId, job, 90);
 
       // 5. Save 9:16 vertical video to storage
       const verticalKey = StorageKeys.clipVertical(userId, clipId);

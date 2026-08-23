@@ -6,9 +6,10 @@ import { useRouter } from 'next/navigation';
 interface AnalyzeTriggerProps {
   videoId: string;
   hasTranscript: boolean;
+  onJobStarted?: (newJob: any) => void;
 }
 
-export function AnalyzeTrigger({ videoId, hasTranscript }: AnalyzeTriggerProps) {
+export function AnalyzeTrigger({ videoId, hasTranscript, onJobStarted }: AnalyzeTriggerProps) {
   const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
@@ -16,6 +17,20 @@ export function AnalyzeTrigger({ videoId, hasTranscript }: AnalyzeTriggerProps) 
   const handleAnalyze = useCallback(async () => {
     setIsLoading(true);
     setError('');
+
+    const tempJobId = `temp-analyze-${Date.now()}`;
+    if (onJobStarted) {
+      onJobStarted({
+        id: tempJobId,
+        type: 'VIRAL_ANALYSIS',
+        status: 'PROCESSING',
+        progress: 35,
+        error: null,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+      });
+    }
+
     try {
       const res = await fetch(`/api/videos/${videoId}/analyze`, {
         method: 'POST',
@@ -23,15 +38,39 @@ export function AnalyzeTrigger({ videoId, hasTranscript }: AnalyzeTriggerProps) 
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Analysis failed.');
+        if (data.jobId && onJobStarted) {
+          onJobStarted({
+            id: data.jobId,
+            type: 'VIRAL_ANALYSIS',
+            status: 'FAILED',
+            progress: 100,
+            error: data.error ?? 'Analysis failed.',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          });
+        }
         return;
       }
+
+      if (data.jobId && onJobStarted) {
+        onJobStarted({
+          id: data.jobId,
+          type: 'VIRAL_ANALYSIS',
+          status: 'COMPLETED',
+          progress: 100,
+          error: null,
+          createdAt: new Date().toISOString(),
+          completedAt: new Date().toISOString(),
+        });
+      }
+
       router.refresh();
     } catch {
       setError('Network error.');
     } finally {
       setIsLoading(false);
     }
-  }, [videoId, router]);
+  }, [videoId, router, onJobStarted]);
 
   if (!hasTranscript) {
     return (

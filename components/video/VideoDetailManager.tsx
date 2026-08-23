@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { VideoTranscriptSection } from './VideoTranscriptSection';
 import { AnalyzeTrigger } from './AnalyzeTrigger';
@@ -68,22 +68,24 @@ interface VideoInfo {
 
 interface VideoDetailManagerProps {
   initialVideo: VideoInfo;
-  projectId: string;
   videoId: string;
 }
 
 export function VideoDetailManager({
   initialVideo,
-  projectId,
   videoId,
 }: VideoDetailManagerProps) {
   const router = useRouter();
 
   const [jobs, setJobs] = useState<JobInfo[]>(initialVideo.jobs);
-  const [cuttingAll, setCuttingAll] = useState(false);
   const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
   const [videoViews, setVideoViews] = useState<Record<string, 'original' | 'vertical'>>({});
   const [error, setError] = useState('');
+  const [dismissedToastIds, setDismissedToastIds] = useState<Record<string, boolean>>({});
+  const [closingToastIds, setClosingToastIds] = useState<Record<string, boolean>>({});
+
+  const jobsRef = useRef(jobs);
+  jobsRef.current = jobs;
 
   // Sync state with server-side props updates
   useEffect(() => {
@@ -92,12 +94,46 @@ export function VideoDetailManager({
 
   // Find active jobs
   const cutJob = jobs.find((j) => j.type === 'CREATE_CLIPS');
+  const faceJob = jobs.find((j) => j.type === 'FACE_DETECTION');
+  const analyzeJob = jobs.find((j) => j.type === 'VIRAL_ANALYSIS');
 
   const isJobRunning = jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
   );
 
-  // Poll job status every 2 seconds if any job is queued/processing
+  // Helper to dismiss toast with smooth exit animation
+  const dismissToastWithAnimation = useCallback((id: string) => {
+    setClosingToastIds((prev) => ({ ...prev, [id]: true }));
+    setTimeout(() => {
+      setDismissedToastIds((prev) => ({ ...prev, [id]: true }));
+      setClosingToastIds((prev) => {
+        const next = { ...prev };
+        delete next[id];
+        return next;
+      });
+    }, 350);
+  }, []);
+
+  // Automatically dismiss completed jobs after 2 seconds with exit animation
+  useEffect(() => {
+    const completedJobs = jobs.filter((j) => j.status === 'COMPLETED');
+    if (completedJobs.length === 0) return;
+
+    const timers = completedJobs.map((job) => {
+      if (!dismissedToastIds[job.id] && !closingToastIds[job.id]) {
+        return setTimeout(() => {
+          dismissToastWithAnimation(job.id);
+        }, 2000);
+      }
+      return null;
+    });
+
+    return () => {
+      timers.forEach((t) => t && clearTimeout(t));
+    };
+  }, [jobs, dismissedToastIds, closingToastIds, dismissToastWithAnimation]);
+
+  // Poll job status every 2000ms if any job is queued/processing
   useEffect(() => {
     if (!isJobRunning) return;
 
@@ -109,15 +145,16 @@ export function VideoDetailManager({
         const data = await res.json();
         if (data.success && data.video && data.video.jobs) {
           const fetchedJobs = data.video.jobs;
-          setJobs(fetchedJobs);
 
           // Check if any previously running job completed or failed
-          const wasRunning = jobs.some(
+          const wasRunning = jobsRef.current.some(
             (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
           );
           const nowRunning = fetchedJobs.some(
             (j: any) => j.status === 'QUEUED' || j.status === 'PROCESSING'
           );
+
+          setJobs(fetchedJobs);
 
           if (wasRunning && !nowRunning) {
             router.refresh();
@@ -130,35 +167,43 @@ export function VideoDetailManager({
 
     timer = setInterval(pollJobs, 2000);
     return () => clearInterval(timer);
-  }, [isJobRunning, videoId, router, jobs]);
+  }, [isJobRunning, videoId, router]);
 
-  // Handle Cut Clips (single clip or all)
-  const handleCutClips = useCallback(async (targetClipId?: string) => {
+  // Handle Cut Clip (per clip)
+  const handleCutClips = useCallback(async (targetClipId: string) => {
     setError('');
-    if (targetClipId) {
-      setActiveClipAction(targetClipId);
-    } else {
-      setCuttingAll(true);
-    }
+    setActiveClipAction(targetClipId);
 
     try {
-      const body = targetClipId ? JSON.stringify({ clipId: targetClipId }) : JSON.stringify({});
       const res = await fetch(`/api/videos/${videoId}/clips`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body,
+        body: JSON.stringify({ clipId: targetClipId }),
       });
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Failed to start clip download.');
         return;
       }
+      if (data.jobId) {
+        setJobs((prev) => [
+          {
+            id: data.jobId,
+            type: 'CREATE_CLIPS',
+            status: 'QUEUED',
+            progress: 5,
+            error: null,
+            createdAt: new Date().toISOString(),
+            completedAt: null,
+          },
+          ...prev.filter((j) => j.id !== data.jobId),
+        ]);
+      }
       router.refresh();
     } catch {
       setError('Network error. Please try again.');
     } finally {
       setActiveClipAction(null);
-      setCuttingAll(false);
     }
   }, [videoId, router]);
 
@@ -166,7 +211,6 @@ export function VideoDetailManager({
   const segments = Array.isArray(transcript?.segments) ? transcript.segments : [];
   const hasTranscript = segments.length > 0;
   const viralAnalysis = initialVideo.viralAnalysis;
-  const hasAnalysis = !!viralAnalysis && viralAnalysis.clips.length > 0;
 
   const totalClips = viralAnalysis?.clips.length ?? 0;
   const completedClipsCount = viralAnalysis?.clips.filter(
@@ -181,6 +225,289 @@ export function VideoDetailManager({
           {error}
         </div>
       )}
+
+      {/* =========================================================
+          Sticky Floating Progress Notifications (Bottom Right)
+      ========================================================= */}
+      <div className="sticky-toast-container">
+        {/* Viral Analysis Progress Toast */}
+        {analyzeJob && !dismissedToastIds[analyzeJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[analyzeJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Viral clip analysis progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {analyzeJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : analyzeJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-processing" style={{ background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24' }}>
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px', borderTopColor: '#fbbf24' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {analyzeJob.status === 'COMPLETED'
+                    ? 'Analysis Finished'
+                    : analyzeJob.status === 'FAILED'
+                      ? 'Analysis Failed'
+                      : analyzeJob.status === 'QUEUED'
+                        ? 'Queued for Gemini AI…'
+                        : 'Analyzing Viral Clips (Gemini AI)…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(analyzeJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {analyzeJob.status === 'COMPLETED'
+                    ? 'Top viral moments identified with scoring & hooks.'
+                    : analyzeJob.status === 'FAILED'
+                      ? (analyzeJob.error || 'Failed to analyze transcript')
+                      : 'Scanning transcript for hooks, peak emotions & virality scores…'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#fbbf24' }}>
+                  {analyzeJob.status === 'COMPLETED' ? '100%' : `${analyzeJob.progress || 35}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: analyzeJob.status === 'COMPLETED' ? '100%' : `${analyzeJob.progress || 35}%`,
+                    background:
+                      analyzeJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : analyzeJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #f59e0b, #ec4899)',
+                  }}
+                >
+                  {analyzeJob.status !== 'COMPLETED' && analyzeJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* Face AI Crop Progress Toast */}
+        {faceJob && !dismissedToastIds[faceJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[faceJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Face tracking and vertical crop progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {faceJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : faceJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-face">
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {faceJob.status === 'COMPLETED'
+                    ? 'Face Crop Finished (9:16 Ready)'
+                    : faceJob.status === 'FAILED'
+                      ? 'Face Crop Failed'
+                      : faceJob.status === 'QUEUED'
+                        ? 'Queued in Face AI Worker…'
+                        : (faceJob.progress || 0) < 50
+                          ? 'Detecting Faces & Speaker…'
+                          : (faceJob.progress || 0) < 75
+                            ? 'Computing 9:16 Trajectory…'
+                            : 'Rendering 9:16 Vertical Video…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(faceJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {faceJob.status === 'COMPLETED'
+                    ? '9:16 vertical crop generated successfully.'
+                    : faceJob.status === 'FAILED'
+                      ? (faceJob.error || 'Failed to crop vertical video')
+                      : (faceJob.progress || 0) < 50
+                        ? 'Detecting active speakers & facial landmarks…'
+                        : (faceJob.progress || 0) < 75
+                          ? 'Smoothing camera framing & trajectory…'
+                          : 'Encoding vertical video with FFmpeg…'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#c084fc' }}>
+                  {faceJob.status === 'COMPLETED' ? '100%' : `${faceJob.progress || 0}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: faceJob.status === 'COMPLETED' ? '100%' : `${faceJob.progress || 5}%`,
+                    background:
+                      faceJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : faceJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #6366f1, #a855f7)',
+                  }}
+                >
+                  {faceJob.status !== 'COMPLETED' && faceJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* Clip Download Progress Toast */}
+        {cutJob && !dismissedToastIds[cutJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[cutJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Download and clipping progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {cutJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : cutJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-processing">
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {cutJob.status === 'COMPLETED'
+                    ? 'Download Finished'
+                    : cutJob.status === 'FAILED'
+                      ? 'Download Failed'
+                      : cutJob.status === 'QUEUED'
+                        ? 'Queued in Clipper Worker…'
+                        : 'Downloading & Cutting Clips…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(cutJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {cutJob.status === 'COMPLETED'
+                    ? `All ${completedClipsCount || totalClips} clips ready to view and edit`
+                    : cutJob.status === 'FAILED'
+                      ? (cutJob.error || 'Failed to download clips')
+                      : 'Downloading clip ranges directly from YouTube…'}
+                </span>
+                <span className="sticky-toast-pct">
+                  {cutJob.status === 'COMPLETED' ? '100%' : `${cutJob.progress}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: cutJob.status === 'COMPLETED' ? '100%' : `${cutJob.progress}%`,
+                    background:
+                      cutJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : cutJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'var(--accent-gradient-warm)',
+                  }}
+                >
+                  {cutJob.status !== 'COMPLETED' && cutJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+      </div>
 
       {/* =========================================================
           Main Workspace Grid (Always accessible immediately)
@@ -212,73 +539,16 @@ export function VideoDetailManager({
             <AnalyzeTrigger
               videoId={videoId}
               hasTranscript={hasTranscript}
+              onJobStarted={(newJob) => {
+                setJobs((prev) => [
+                  newJob as JobInfo,
+                  ...prev.filter((j) => j.id !== newJob.id),
+                ]);
+              }}
             />
 
             {viralAnalysis && (
               <div style={{ marginTop: '20px' }}>
-                {/* Batch Cut Clips Card (When not all clips are cut) */}
-                {!clipsCutCompleted && (
-                  <div style={{ marginBottom: '24px' }}>
-                    {!cutJob || cutJob.status === 'FAILED' ? (
-                      <div className="cut-clips-card">
-                        <div className="cut-clips-info">
-                          <p className="cut-clips-title">Download &amp; Cut All Viral Clips</p>
-                          <p className="cut-clips-desc">
-                            Directly download the {viralAnalysis.clips.length} selected clip ranges ({viralAnalysis.clips.map((c) => `${c.startTime}-${c.endTime}`).join(', ')}) from YouTube without downloading the full video.
-                          </p>
-                        </div>
-                        <button
-                          id="cut-all-clips-btn"
-                          onClick={() => handleCutClips()}
-                          disabled={cuttingAll || isJobRunning}
-                          className="cut-clips-btn"
-                        >
-                          {cuttingAll ? (
-                            <>
-                              <span className="auth-spinner" aria-hidden="true" />
-                              Starting…
-                            </>
-                          ) : (
-                            <>
-                              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                <circle cx="6" cy="6" r="3" />
-                                <circle cx="6" cy="18" r="3" />
-                                <line x1="20" y1="4" x2="8.12" y2="15.88" />
-                                <line x1="14.47" y1="14.48" x2="20" y2="20" />
-                                <line x1="8.12" y1="8.12" x2="12" y2="12" />
-                              </svg>
-                              Cut All Clips
-                            </>
-                          )}
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="progress-container" style={{ maxWidth: '100%', marginBottom: '24px' }}>
-                        <div className="progress-info">
-                          <span className="progress-label">
-                            {cutJob.status === 'QUEUED' ? 'Queued in clipper worker…' : 'Downloading & cutting clip ranges…'}
-                          </span>
-                          <span className="progress-value">{cutJob.progress}%</span>
-                        </div>
-                        <div className="progress-track">
-                          <div
-                            className="progress-fill"
-                            style={{ width: `${cutJob.progress}%`, background: 'var(--accent-gradient-warm)' }}
-                          >
-                            <div className="progress-fill-stripes" />
-                          </div>
-                        </div>
-                      </div>
-                    )}
-
-                    {cutJob?.status === 'FAILED' && cutJob.error && (
-                      <p className="form-error" role="alert" style={{ marginTop: '8px' }}>
-                        Clipping failed: {cutJob.error}
-                      </p>
-                    )}
-                  </div>
-                )}
-
                 {/* Overall summary */}
                 <div className="analysis-summary-card">
                   <p className="analysis-summary-label">Overall Analysis</p>
@@ -416,6 +686,12 @@ export function VideoDetailManager({
                                   hasClipAsset={isCompleted}
                                   hasVertical={!!clip.hasVertical}
                                   isJobRunning={isJobRunning}
+                                  onJobStarted={(newJob) => {
+                                    setJobs((prev) => [
+                                      newJob as JobInfo,
+                                      ...prev.filter((j) => j.id !== newJob.id),
+                                    ]);
+                                  }}
                                 />
                               </div>
 

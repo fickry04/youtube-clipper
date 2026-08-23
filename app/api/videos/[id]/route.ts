@@ -1,7 +1,7 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import { db } from '@/lib/prisma';
-import { getStorage } from '@/lib/storage';
+import { getStorage, StorageKeys } from '@/lib/storage';
 
 export async function GET(
   _request: NextRequest,
@@ -124,6 +124,12 @@ export async function DELETE(
     const fileDeletions = [
       ...video.assets.map((a) => storage.delete(a.storagePath)),
       ...clips.filter((c) => c.asset).map((c) => storage.delete(c.asset!.storagePath)),
+      // Delete 9:16 vertical crop file if exists
+      ...clips.map((c) => storage.delete(StorageKeys.clipVertical(userId, c.id))),
+      // Delete burned subtitles video if exists
+      ...clips.map((c) => storage.delete(`users/${userId}/clips/${c.id}/clip_burned.mp4`)),
+      // Delete subtitle SRT if exists
+      ...clips.map((c) => storage.delete(StorageKeys.clipSubtitle(userId, c.id))),
     ];
 
     const dirDeletions = [

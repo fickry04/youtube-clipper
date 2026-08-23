@@ -214,7 +214,7 @@ export async function POST(
       data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },
     });
 
-    return Response.json({ success: true, result });
+    return Response.json({ success: true, result, jobId: job.id });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Analysis failed.';
 
@@ -224,6 +224,6 @@ export async function POST(
       data: { status: 'FAILED', error: message, completedAt: new Date() },
     });
 
-    return Response.json({ success: false, error: message }, { status: 500 });
+    return Response.json({ success: false, error: message, jobId: job.id }, { status: 500 });
   }
 }

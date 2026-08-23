@@ -8,6 +8,7 @@ interface CropFaceButtonProps {
   hasClipAsset: boolean;
   hasVertical: boolean;
   isJobRunning?: boolean;
+  onJobStarted?: (newJob: any) => void;
 }
 
 export function CropFaceButton({
@@ -15,6 +16,7 @@ export function CropFaceButton({
   hasClipAsset,
   hasVertical,
   isJobRunning = false,
+  onJobStarted,
 }: CropFaceButtonProps) {
   const router = useRouter();
   const [loading, setLoading] = useState(false);
@@ -30,13 +32,24 @@ export function CropFaceButton({
         setError(data.error ?? 'Gagal memulai auto-crop video.');
         return;
       }
+      if (data.jobId && onJobStarted) {
+        onJobStarted({
+          id: data.jobId,
+          type: 'FACE_DETECTION',
+          status: 'QUEUED',
+          progress: 5,
+          error: null,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+        });
+      }
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');
     } finally {
       setLoading(false);
     }
-  }, [clipId, router]);
+  }, [clipId, router, onJobStarted]);
 
   if (hasVertical) {
     return (

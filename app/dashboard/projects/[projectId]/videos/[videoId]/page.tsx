@@ -85,9 +85,9 @@ export default async function VideoDetailPage({
     ...video,
     viralAnalysis: video.viralAnalysis
       ? {
-          ...video.viralAnalysis,
-          clips: clipsWithVertical,
-        }
+        ...video.viralAnalysis,
+        clips: clipsWithVertical,
+      }
       : null,
   };
 
@@ -227,7 +227,6 @@ export default async function VideoDetailPage({
       ========================================================= */}
       <VideoDetailManager
         initialVideo={videoWithVertical as any}
-        projectId={projectId}
         videoId={video.id}
       />
     </div>

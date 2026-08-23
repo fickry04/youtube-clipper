@@ -66,15 +66,23 @@ function buildSrt(cues: SrtCue[]): string {
 // Processor
 // ---------------------------------------------------------------------------
 
+async function setSubtitleProgress(jobId: string, job: Job<GenerateSubtitlePayload>, progress: number) {
+    await job.updateProgress(progress);
+    await prisma.job.update({
+        where: { id: jobId },
+        data: { progress },
+    }).catch(() => {});
+}
+
 export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promise<void> {
     const { jobId, videoId, userId, clipId } = job.data;
 
     await prisma.job.update({
         where: { id: jobId },
-        data: { status: 'PROCESSING', startedAt: new Date(), attempts: { increment: 1 } },
+        data: { status: 'PROCESSING', progress: 5, startedAt: new Date(), attempts: { increment: 1 } },
     });
 
-    await job.updateProgress(5);
+    await setSubtitleProgress(jobId, job, 5);
 
     try {
         // Load clip and its viralAnalysis (to reach videoId → transcript)
@@ -132,7 +140,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
 
         const srtContent = buildSrt(cues);
 
-        await job.updateProgress(35);
+        await setSubtitleProgress(jobId, job, 35);
 
         // Persist SRT to the Subtitle table
         await prisma.subtitle.upsert({
@@ -146,7 +154,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
         const srtKey = StorageKeys.clipSubtitle(userId, clipId);
         await storage.saveBuffer(srtKey, srtContent, 'utf-8');
 
-        await job.updateProgress(50);
+        await setSubtitleProgress(jobId, job, 50);
 
         // Get paths for FFmpeg burn
         const clipKey = StorageKeys.clipVideo(userId, clipId);
@@ -177,7 +185,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
                 fontSize: 22,
             });
 
-            await job.updateProgress(85);
+            await setSubtitleProgress(jobId, job, 85);
 
             // For local storage, the burned file lives alongside the original
             // We store it as a new key (clip_burned.mp4 equivalent)

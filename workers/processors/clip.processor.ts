@@ -24,7 +24,8 @@ async function downloadClipSection(
   youtubeUrl: string,
   startSec: number,
   endSec: number,
-  outputPattern: string
+  outputPattern: string,
+  onProgress?: (percent: number) => void
 ): Promise<void> {
   const args = [
     '-4',
@@ -38,6 +39,7 @@ async function downloadClipSection(
     '--no-playlist',
     '--js-runtimes',
     'node',
+    '--newline',
     '--extractor-args',
     'youtube:player_client=web_embedded',
     youtubeUrl,
@@ -47,6 +49,17 @@ async function downloadClipSection(
     let stderrOutput = '';
     const child = spawn(YTDLP_BIN, args, {
       timeout: 5 * 60 * 1000, // 5 minutes max per clip
+    });
+
+    child.stdout?.on('data', (data: Buffer) => {
+      const text = data.toString();
+      const match = text.match(/\[download\]\s+(\d+(?:\.\d+)?)%/);
+      if (match && onProgress) {
+        const pct = parseFloat(match[1]);
+        if (!isNaN(pct)) {
+          onProgress(pct);
+        }
+      }
     });
 
     child.stderr?.on('data', (data) => {
@@ -72,7 +85,7 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
 
   await prisma.job.update({
     where: { id: jobId },
-    data: { status: 'PROCESSING', startedAt: new Date(), attempts: { increment: 1 } },
+    data: { status: 'PROCESSING', progress: 5, startedAt: new Date(), attempts: { increment: 1 } },
   });
 
   await job.updateProgress(5);
@@ -118,12 +131,27 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
       const tmpFile = path.join(tmpDir, 'clip.%(ext)s');
 
       try {
+        let lastReportedPct = 0;
         // Download only the needed section via yt-dlp
         await downloadClipSection(
           youtubeUrl,
           clip.startSeconds,
           clip.endSeconds,
-          tmpFile
+          tmpFile,
+          async (clipDownloadPct) => {
+            const clipBase = 10 + (i / total) * 80;
+            const clipContrib = ((clipDownloadPct / 100) * 0.85) * (80 / total);
+            const overallPct = Math.min(92, Math.round(clipBase + clipContrib));
+
+            if (overallPct > lastReportedPct + 1) {
+              lastReportedPct = overallPct;
+              await job.updateProgress(overallPct);
+              await prisma.job.update({
+                where: { id: jobId },
+                data: { progress: overallPct },
+              }).catch(() => {});
+            }
+          }
         );
 
         // Find the actual output MP4 file
@@ -183,8 +211,8 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
         await fs.rm(tmpDir, { recursive: true, force: true });
       }
 
-      // Report progress (10% → 90% across clips)
-      const progress = Math.round(10 + ((i + 1) / total) * 80);
+      // Report progress (10% → 95% across clips)
+      const progress = Math.round(10 + ((i + 1) / total) * 85);
       await job.updateProgress(progress);
       await prisma.job.update({
         where: { id: jobId },
