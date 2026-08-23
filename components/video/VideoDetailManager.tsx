@@ -293,7 +293,11 @@ export function VideoDetailManager({
                     const isCompleted = clip.processingStatus === 'COMPLETED' && !!clip.asset;
                     const isFailed = clip.processingStatus === 'FAILED';
 
-                    const isVerticalView = videoViews[clip.id] === 'vertical' && !!clip.hasVertical;
+                    // Default to vertical 9:16 if vertical crop is ready, unless user explicitly switched to 'original'
+                    const isVerticalView = clip.hasVertical
+                      ? videoViews[clip.id] !== 'original'
+                      : false;
+
                     const currentVideoSrc = isVerticalView
                       ? `/api/clips/${clip.id}/vertical`
                       : `/api/clips/${clip.id}/video`;
@@ -306,17 +310,18 @@ export function VideoDetailManager({
                       >
                         {/* Left Column: Video Mockup / Action */}
                         <div className="clip-card-left">
-                          <div className="clip-video-mockup">
-                            <div
-                              className="clip-video-area-inner"
-                              style={isVerticalView ? { display: 'flex', justifyContent: 'center', background: '#000' } : undefined}
-                            >
+                          <div className={`clip-video-mockup ${isVerticalView ? 'mode-9-16' : 'mode-16-9'}`}>
+                            {isCompleted && (
+                              <span className="clip-preview-ratio-badge">
+                                {isVerticalView ? '📱 9:16 Shorts' : '🖥️ 16:9 Original'}
+                              </span>
+                            )}
+                            <div className="clip-video-area-inner">
                               {isCompleted ? (
                                 <video
                                   key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}`}
                                   controls
                                   className="clip-video-player"
-                                  style={isVerticalView ? { maxHeight: '280px', width: 'auto', aspectRatio: '9/16', objectFit: 'contain' } : undefined}
                                   src={currentVideoSrc}
                                   preload="metadata"
                                   aria-label={`Clip ${clip.rank}: ${clip.title}`}
@@ -401,68 +406,88 @@ export function VideoDetailManager({
                             {clip.startTime} → {clip.endTime}
                           </div>
 
-                          {/* Actions: Subtitle, Face Crop & Direct Downloads */}
-                          <div className="clip-subtitle-row" style={{ padding: '8px 16px', borderBottom: '1px solid var(--border-subtle)', display: 'flex', gap: '10px', alignItems: 'center', flexWrap: 'wrap' }}>
-                            <GenerateSubtitleButton
-                              clipId={clip.id}
-                              hasSubtitle={clip.subtitles.some((s) => s.format === 'srt')}
-                              hasClipAsset={isCompleted}
-                            />
+                          {/* Actions: Face Crop Row (Top) & Subtitle Row (Bottom) */}
+                          <div className="clip-actions-container">
+                            {/* Row 1: Face Crop & Framing */}
+                            <div className="clip-action-row">
+                              <div className="clip-action-group">
+                                <CropFaceButton
+                                  clipId={clip.id}
+                                  hasClipAsset={isCompleted}
+                                  hasVertical={!!clip.hasVertical}
+                                  isJobRunning={isJobRunning}
+                                />
+                              </div>
 
-                            <CropFaceButton
-                              clipId={clip.id}
-                              hasClipAsset={isCompleted}
-                              hasVertical={!!clip.hasVertical}
-                              isJobRunning={isJobRunning}
-                            />
+                              {clip.hasVertical && (
+                                <div className="segmented-view-toggle">
+                                  <button
+                                    onClick={() => setVideoViews((prev) => ({ ...prev, [clip.id]: 'vertical' }))}
+                                    className={`view-mode-btn ${isVerticalView ? 'active-vert' : ''}`}
+                                    title="Tampilkan preview vertikal 9:16 (Shorts/Reels)"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
+                                    </svg>
+                                    <span>9:16</span>
+                                  </button>
 
-                            {clip.hasVertical && (
-                              <button
-                                onClick={() => setVideoViews((prev) => ({
-                                  ...prev,
-                                  [clip.id]: prev[clip.id] === 'vertical' ? 'original' : 'vertical',
-                                }))}
-                                className="action-btn action-btn-secondary"
-                                style={{ fontSize: '0.8rem', padding: '6px 10px', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                                title="Ganti tampilan player antara 16:9 dan 9:16"
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-                                </svg>
-                                <span>{videoViews[clip.id] === 'vertical' ? 'View 16:9' : 'View 9:16'}</span>
-                              </button>
-                            )}
+                                  <button
+                                    onClick={() => setVideoViews((prev) => ({ ...prev, [clip.id]: 'original' }))}
+                                    className={`view-mode-btn ${!isVerticalView ? 'active-orig' : ''}`}
+                                    title="Tampilkan preview horizontal 16:9 (Original)"
+                                  >
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                      <rect width="20" height="14" x="2" y="5" rx="2" ry="2" />
+                                    </svg>
+                                    <span>16:9</span>
+                                  </button>
+                                </div>
+                              )}
 
-                            {isCompleted && (
-                              <a
-                                href={`/api/clips/${clip.id}/video`}
-                                download={`clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`}
-                                className="action-btn action-btn-secondary"
-                                style={{ fontSize: '0.8rem', padding: '6px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                                  <polyline points="7 10 12 15 17 10" />
-                                  <line x1="12" y1="15" x2="12" y2="3" />
-                                </svg>
-                                Save MP4
-                              </a>
-                            )}
+                              {clip.hasVertical && (
+                                <a
+                                  href={`/api/clips/${clip.id}/vertical`}
+                                  download={`clip_${clip.rank}_9-16_${clip.startTime.replace(':', '-')}.mp4`}
+                                  className="action-btn action-btn-download-vert"
+                                  title="Download video vertikal 9:16"
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
+                                  <span>Save 9:16 MP4</span>
+                                </a>
+                              )}
 
-                            {clip.hasVertical && (
-                              <a
-                                href={`/api/clips/${clip.id}/vertical`}
-                                download={`clip_${clip.rank}_9-16_${clip.startTime.replace(':', '-')}.mp4`}
-                                className="action-btn action-btn-secondary"
-                                style={{ fontSize: '0.8rem', padding: '6px 10px', textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '6px', background: 'rgba(59, 130, 246, 0.1)', borderColor: 'rgba(59, 130, 246, 0.3)', color: '#60a5fa' }}
-                              >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                                  <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-                                  <path d="M12 18h.01" />
-                                </svg>
-                                Save 9:16 MP4
-                              </a>
-                            )}
+                              {isCompleted && (
+                                <a
+                                  href={`/api/clips/${clip.id}/video`}
+                                  download={`clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`}
+                                  className="action-btn action-btn-secondary action-btn-download-orig"
+                                  title="Download video original 16:9"
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                                    <polyline points="7 10 12 15 17 10" />
+                                    <line x1="12" y1="15" x2="12" y2="3" />
+                                  </svg>
+                                  <span>Save MP4 (16:9)</span>
+                                </a>
+                              )}
+                            </div>
+
+                            {/* Row 2: Subtitle & Captions (Di bawah, setelah Face Crop) */}
+                            <div className="clip-action-row">
+                              <div className="clip-action-group">
+                                <GenerateSubtitleButton
+                                  clipId={clip.id}
+                                  hasSubtitle={clip.subtitles.some((s) => s.format === 'srt')}
+                                  hasClipAsset={isCompleted}
+                                />
+                              </div>
+                            </div>
                           </div>
 
                           {/* Clip Card Body */}

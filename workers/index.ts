@@ -22,22 +22,31 @@ const connection = getRedisConnection();
 // Active Workers
 // ---------------------------------------------------------------------------
 
+// Standard options for CPU/IO heavy video and AI workloads
+const heavyWorkerOptions = {
+  connection,
+  concurrency: 1, // serial: yt-dlp, AI model & FFmpeg are CPU-heavy
+  lockDuration: 300_000, // 5 minutes lock TTL (prevents lock loss during AI inference/FFmpeg)
+  stalledInterval: 60_000, // Check stalled jobs every 60s
+  maxStalledCount: 3, // Allow up to 3 recoveries before failing
+};
+
 const clipWorker = new Worker(
   QUEUE_NAMES.CLIP,
   async (job) => processClips(job as Parameters<typeof processClips>[0]),
-  { connection, concurrency: 1 } // serial: yt-dlp & FFmpeg are CPU-heavy
+  heavyWorkerOptions
 );
 
 const subtitleWorker = new Worker(
   QUEUE_NAMES.SUBTITLE,
   async (job) => processSubtitle(job as Parameters<typeof processSubtitle>[0]),
-  { connection, concurrency: 1 } // serial: FFmpeg is CPU-heavy
+  heavyWorkerOptions
 );
 
 const faceWorker = new Worker(
   QUEUE_NAMES.FACE_DETECTION,
   async (job) => processFaceDetection(job as Parameters<typeof processFaceDetection>[0]),
-  { connection, concurrency: 1 } // serial: AI model & FFmpeg are CPU-heavy
+  heavyWorkerOptions
 );
 
 // ---------------------------------------------------------------------------

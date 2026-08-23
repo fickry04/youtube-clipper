@@ -6,7 +6,7 @@ import { formatTimestamp } from '@/lib/utils';
 import type { ViralClip, ViralAnalysisResult, ViralCategory, TranscriptSegment } from '@/lib/types';
 
 const MODEL_NAME = 'gemini-2.5-flash';
-const TOP_N = 10;
+const TOP_N = 3;
 const MAX_TRANSCRIPT_BYTES = 500_000;
 
 const VALID_CATEGORIES: ViralCategory[] = [

@@ -152,7 +152,8 @@ async function extractFrames(
  */
 export async function detectFacesInVideo(
   videoPath: string,
-  fps: number = 2
+  fps: number = 2,
+  onProgress?: (processed: number, total: number) => Promise<void> | void
 ): Promise<{ frames: FrameFaces[]; videoInfo: VideoDimensions }> {
   await initFaceApi();
 
@@ -224,6 +225,13 @@ export async function detectFacesInVideo(
       }
 
       frames.push({ timestamp, faces: detectedFaces });
+
+      // Yield back to the Node.js event loop so BullMQ lock renewal timers and Redis I/O can execute
+      await new Promise((resolve) => setImmediate(resolve));
+
+      if (onProgress) {
+        await onProgress(i + 1, frameFiles.length);
+      }
     }
 
     return { frames, videoInfo };

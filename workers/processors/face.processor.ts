@@ -57,14 +57,23 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
 
     // 1. Detect faces and landmarks across video frames
     console.log(`[face.processor] Analyzing faces and active speakers for clip ${clipId}...`);
-    const { frames, videoInfo } = await detectFacesInVideo(clipVideoPath, 2);
+    const { frames, videoInfo } = await detectFacesInVideo(
+      clipVideoPath,
+      2,
+      async (processed, total) => {
+        if (processed % 5 === 0 || processed === total) {
+          const progress = 15 + Math.round((processed / total) * 35);
+          await job.updateProgress(progress);
+        }
+      }
+    );
 
     await job.updateProgress(50);
 
     // 2. Compute smooth active-speaker framing trajectory
     const { cropFilter, detections } = computeSmoothCropTrajectory(frames, videoInfo);
 
-    console.log(`[face.processor] Computed crop filter: ${cropFilter}`);
+    // console.log(`[face.processor] Computed crop filter: ${cropFilter}`);
 
     await job.updateProgress(65);
 
@@ -103,7 +112,7 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
       const verticalKey = StorageKeys.clipVertical(userId, clipId);
       await storage.save(verticalKey, croppedTmp);
     } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
     }
 
     // 6. Mark job complete

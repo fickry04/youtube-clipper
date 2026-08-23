@@ -1113,7 +1113,7 @@ body {
   border-radius: 4px;
   letter-spacing: 0.5px;
   z-index: 2;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.5);
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.5);
 }
 
 .video-header-yt-overlay {
@@ -1483,45 +1483,80 @@ body {
   flex-direction: column;
 }
 
-/* Smartphone Mockup Frame */
+/* Smartphone / Widescreen Mockup Frame */
 .clip-video-mockup {
   position: relative;
   width: 100%;
   max-width: 220px;
   aspect-ratio: 9/16;
   background: #09090b;
-  border: 10px solid #1e1e24;
+  border: 8px solid #1e1e24;
   /* Bezel */
-  border-radius: 36px;
+  border-radius: 32px;
   box-shadow:
     0 12px 36px rgba(0, 0, 0, 0.6),
     0 0 0 1px rgba(255, 255, 255, 0.05),
     var(--shadow-purple);
   overflow: hidden;
-  transition: transform var(--transition-base), box-shadow var(--transition-base);
+  transition: all 0.35s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .clip-video-mockup:hover {
-  transform: scale(1.03);
+  transform: translateY(-2px);
   box-shadow:
     0 16px 48px rgba(0, 0, 0, 0.7),
     0 0 0 1px rgba(255, 255, 255, 0.1),
     var(--shadow-purple-strong);
 }
 
-/* Screen Notch */
-.clip-video-mockup::before {
+/* 9:16 Smartphone Mode (Portrait) */
+.clip-video-mockup.mode-9-16 {
+  max-width: 220px;
+  aspect-ratio: 9/16;
+  border-radius: 32px;
+  border-width: 8px;
+}
+
+/* Screen Notch (only active in 9:16 smartphone mode) */
+.clip-video-mockup.mode-9-16::before {
   content: '';
   position: absolute;
   top: 0;
   left: 50%;
   transform: translateX(-50%);
-  width: 80px;
-  height: 14px;
+  width: 70px;
+  height: 12px;
   background: #1e1e24;
-  border-bottom-left-radius: 10px;
-  border-bottom-right-radius: 10px;
+  border-bottom-left-radius: 8px;
+  border-bottom-right-radius: 8px;
   z-index: 10;
+  pointer-events: none;
+}
+
+/* 16:9 Landscape Mode (Widescreen Original Video) */
+.clip-video-mockup.mode-16-9 {
+  max-width: 260px;
+  aspect-ratio: 16/9;
+  border-radius: 14px;
+  border-width: 6px;
+}
+
+/* Overlay Aspect Ratio Indicator */
+.clip-preview-ratio-badge {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 12;
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.03em;
+  padding: 2px 7px;
+  border-radius: 99px;
+  background: rgba(0, 0, 0, 0.75);
+  backdrop-filter: blur(6px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  color: #fff;
+  pointer-events: none;
 }
 
 /* Inner Screen Area */
@@ -1533,13 +1568,122 @@ body {
   justify-content: center;
   position: relative;
   background: #000;
+  overflow: hidden;
 }
 
 .clip-video-player {
   width: 100%;
   height: 100%;
   object-fit: cover;
-  /* Cover is ideal for portrait mockups */
+  display: block;
+}
+
+/* ─── CLIP ACTIONS CONTAINER & ROWS ────────────────────────────── */
+.clip-actions-container {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 16px;
+  background: rgba(0, 0, 0, 0.12);
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.clip-action-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.clip-action-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.clip-action-label {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+
+/* Segmented View Toggle (9:16 vs 16:9) */
+.segmented-view-toggle {
+  display: inline-flex;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border-subtle);
+  border-radius: 8px;
+  padding: 2px;
+  gap: 2px;
+}
+
+.view-mode-btn {
+  font-size: 0.75rem;
+  padding: 4px 8px;
+  border-radius: 6px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 500;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: all var(--transition-fast);
+}
+
+.view-mode-btn:hover {
+  color: var(--text-primary);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.view-mode-btn.active-vert {
+  background: rgba(59, 130, 246, 0.22);
+  color: #93c5fd;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.2);
+}
+
+.view-mode-btn.active-orig {
+  background: rgba(168, 85, 247, 0.22);
+  color: #d8b4fe;
+  font-weight: 700;
+  box-shadow: 0 1px 4px rgba(168, 85, 247, 0.2);
+}
+
+.action-btn-download-vert {
+  background: rgba(59, 130, 246, 0.1) !important;
+  border-color: rgba(59, 130, 246, 0.35) !important;
+  color: #60a5fa !important;
+  font-size: 0.75rem !important;
+  padding: 5px 10px !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 6px;
+}
+
+.action-btn-download-vert:hover {
+  background: rgba(59, 130, 246, 0.2) !important;
+  border-color: rgba(59, 130, 246, 0.5) !important;
+  color: #93c5fd !important;
+}
+
+.action-btn-download-orig {
+  font-size: 0.75rem !important;
+  padding: 5px 10px !important;
+  text-decoration: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  border-radius: 6px;
+  border-color: rgba(0, 4, 255, 0.788);
+  box-shadow: 0 1px 4px rgba(168, 85, 247, 0.2);
 }
 
 .clip-video-processing,
@@ -1617,8 +1761,6 @@ body {
   flex-direction: column;
   gap: 10px;
 }
-
-.clip-info-row {}
 
 .clip-info-label {
   font-size: 0.75rem;
@@ -2065,8 +2207,13 @@ body {
 }
 
 @keyframes fadeInOverlay {
-  from { opacity: 0; }
-  to   { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 /* Dialog card */
@@ -2085,8 +2232,15 @@ body {
 }
 
 @keyframes slideUpDialog {
-  from { opacity: 0; transform: translateY(12px) scale(0.97); }
-  to   { opacity: 1; transform: translateY(0) scale(1); }
+  from {
+    opacity: 0;
+    transform: translateY(12px) scale(0.97);
+  }
+
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
 }
 
 /* Warning icon */
@@ -2172,7 +2326,7 @@ body {
 }
 
 .delete-dialog-cancel-btn:hover {
-  background: var(--bg-hover, rgba(255,255,255,0.05));
+  background: var(--bg-hover, rgba(255, 255, 255, 0.05));
   color: var(--text-primary);
 }
 
@@ -2219,6 +2373,6 @@ body {
   width: 14px;
   height: 14px;
   border-width: 2px;
-  border-color: rgba(255,255,255,0.3);
+  border-color: rgba(255, 255, 255, 0.3);
   border-top-color: #fff;
 }
