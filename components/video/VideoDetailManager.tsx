@@ -159,7 +159,7 @@ export function VideoDetailManager({
   }, [videoId, router]);
 
   const transcript = initialVideo.transcript;
-  const segments = transcript?.segments ?? [];
+  const segments = Array.isArray(transcript?.segments) ? transcript.segments : [];
   const hasTranscript = segments.length > 0;
   const viralAnalysis = initialVideo.viralAnalysis;
   const hasAnalysis = !!viralAnalysis && viralAnalysis.clips.length > 0;

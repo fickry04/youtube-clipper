@@ -2,6 +2,7 @@ import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
+import type { TranscriptSegment } from '@/lib/types';
 
 import { VideoDetailManager } from '@/components/video/VideoDetailManager';
 import { DeleteVideoButton } from '@/components/video/DeleteVideoButton';
@@ -37,22 +38,7 @@ export default async function VideoDetailPage({
           name: true,
         },
       },
-
-      assets: {
-        where: { type: 'source' },
-        take: 1,
-        select: { id: true },
-      },
-
-      transcript: {
-        include: {
-          segments: {
-            orderBy: {
-              order: 'asc',
-            },
-          },
-        },
-      },
+      transcript: true,
 
       viralAnalysis: {
         include: {
@@ -82,10 +68,9 @@ export default async function VideoDetailPage({
   }
 
   const transcript = video.transcript;
-  const segments = transcript?.segments ?? [];
-  const hasTranscript = segments.length > 0;
+  const segments = (transcript?.segments as unknown as TranscriptSegment[]) ?? [];
+  const hasTranscript = Array.isArray(segments) && segments.length > 0;
   const viralAnalysis = video.viralAnalysis;
-  const hasSourceVideo = video.assets.length > 0;
   const hasAnalysis = !!viralAnalysis && viralAnalysis.clips.length > 0;
   const isJobRunning = video.jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'

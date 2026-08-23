@@ -4,9 +4,6 @@ import { getSession } from '@/lib/auth/session';
 // Routes that are always public (no auth required)
 const PUBLIC_API_PREFIXES = [
   '/api/auth',       // Better Auth endpoints
-  '/api/languages',  // Existing public transcript tools
-  '/api/transcript',
-  '/api/analyze',
 ];
 
 const PUBLIC_PAGE_PREFIXES = [

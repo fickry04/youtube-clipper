@@ -146,24 +146,9 @@ model Transcript {
   videoId      String   @unique
   video        Video    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   languageCode String
+  segments     Json     @default("[]")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
-
-  segments TranscriptSegment[]
-}
-
-model TranscriptSegment {
-  id           String     @id @default(cuid())
-  transcriptId String
-  transcript   Transcript @relation(fields: [transcriptId], references: [id], onDelete: Cascade)
-  offset       Float // seconds from video start
-  duration     Float // seconds
-  text         String
-  lang         String?
-  order        Int // segment index for ordering
-
-  @@index([transcriptId])
-  @@index([transcriptId, offset])
 }
 
 // =============================================================================

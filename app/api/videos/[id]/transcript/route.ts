@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { fetchTranscript } from 'youtube-transcript-plus';
 import { decodeHtmlEntities } from '@/lib/utils';
+import type { TranscriptSegment } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -23,11 +24,7 @@ export async function GET(
   const video = await prisma.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
     include: {
-      transcript: {
-        include: {
-          segments: { orderBy: { order: 'asc' } },
-        },
-      },
+      transcript: true,
     },
   });
 
@@ -40,17 +37,13 @@ export async function GET(
 
   // Return cached transcript from DB if available
   if (video.transcript && !lang) {
+    const cachedSegments = (video.transcript.segments as unknown as TranscriptSegment[]) ?? [];
     return Response.json({
       success: true,
       source: 'database',
       videoId,
       languageCode: video.transcript.languageCode,
-      segments: video.transcript.segments.map((s) => ({
-        text: s.text,
-        offset: s.offset,
-        duration: s.duration,
-        lang: s.lang,
-      })),
+      segments: cachedSegments,
     });
   }
 
@@ -67,38 +60,26 @@ export async function GET(
       );
     }
 
-    const segments = rawSegments.map((s) => ({
-      ...s,
+    const segments: TranscriptSegment[] = rawSegments.map((s) => ({
       text: decodeHtmlEntities(s.text),
+      offset: s.offset,
+      duration: s.duration,
+      lang: s.lang ?? null,
     }));
 
-    // Persist to DB (upsert transcript, replace segments)
-    await prisma.$transaction(async (tx) => {
-      const transcript = await tx.transcript.upsert({
-        where: { videoId },
-        update: { languageCode: lang ?? 'default', updatedAt: new Date() },
-        create: {
-          videoId,
-          languageCode: lang ?? 'default',
-        },
-      });
-
-      // Delete existing segments
-      await tx.transcriptSegment.deleteMany({
-        where: { transcriptId: transcript.id },
-      });
-
-      // Insert fresh segments
-      await tx.transcriptSegment.createMany({
-        data: segments.map((s, idx) => ({
-          transcriptId: transcript.id,
-          offset: s.offset,
-          duration: s.duration,
-          text: s.text,
-          lang: s.lang,
-          order: idx,
-        })),
-      });
+    // Persist to DB (upsert transcript in 1 row)
+    await prisma.transcript.upsert({
+      where: { videoId },
+      update: {
+        languageCode: lang ?? 'default',
+        segments: segments as any,
+        updatedAt: new Date(),
+      },
+      create: {
+        videoId,
+        languageCode: lang ?? 'default',
+        segments: segments as any,
+      },
     });
 
     return Response.json({

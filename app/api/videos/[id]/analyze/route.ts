@@ -3,10 +3,10 @@ import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { GoogleGenAI } from '@google/genai';
 import { formatTimestamp } from '@/lib/utils';
-import type { ViralClip, ViralAnalysisResult, ViralCategory } from '@/lib/types';
+import type { ViralClip, ViralAnalysisResult, ViralCategory, TranscriptSegment } from '@/lib/types';
 
 const MODEL_NAME = 'gemini-2.5-flash';
-const TOP_N = 3;
+const TOP_N = 10;
 const MAX_TRANSCRIPT_BYTES = 500_000;
 
 const VALID_CATEGORIES: ViralCategory[] = [
@@ -122,9 +122,7 @@ export async function POST(
   const video = await prisma.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
     include: {
-      transcript: {
-        include: { segments: { orderBy: { order: 'asc' } } },
-      },
+      transcript: true,
     },
   });
 
@@ -132,12 +130,13 @@ export async function POST(
     return Response.json({ success: false, error: 'Video not found or access denied.' }, { status: 404 });
   }
 
-  if (!video.transcript || video.transcript.segments.length === 0) {
+  const segments = (video.transcript?.segments as unknown as TranscriptSegment[]) ?? [];
+  if (!video.transcript || !Array.isArray(segments) || segments.length === 0) {
     return Response.json({ success: false, error: 'No transcript available. Fetch the transcript first.' }, { status: 422 });
   }
 
   // Build transcript string from stored segments
-  const transcriptStr = video.transcript.segments
+  const transcriptStr = segments
     .map((s) => `[${formatTimestamp(s.offset)}] ${s.text}`)
     .join('\n');
 
