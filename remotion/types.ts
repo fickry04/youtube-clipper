@@ -13,7 +13,16 @@ export interface CaptionCue {
   words: WordTimestamp[];
 }
 
-export type SubtitlePreset = 'hormozi' | 'karaoke' | 'minimalist' | 'beast' | 'clean';
+export type SubtitlePreset =
+  | 'plain'
+  | 'clean'
+  | 'box-highlight'
+  | 'cinema'
+  | 'underline'
+  | 'hormozi'
+  | 'beast'
+  | 'karaoke'
+  | 'minimalist';
 
 export interface SubtitleStyleConfig {
   preset: SubtitlePreset;
@@ -26,6 +35,8 @@ export interface SubtitleStyleConfig {
   uppercase?: boolean; // default true
   wordsPerPage?: number; // default 3
   showEmoji?: boolean; // default true
+  timeOffset?: number; // Timing calibration offset in seconds (e.g. -30.0 to +30.0, default 0)
+  disableHighlight?: boolean; // When true, all words are shown uniformly without per-word highlight
 }
 
 export interface TikTokCaptionsProps {

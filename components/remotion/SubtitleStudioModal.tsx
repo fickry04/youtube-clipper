@@ -23,11 +23,46 @@ const PRESET_OPTIONS: Array<{
   defaultColor: string;
 }> = [
   {
-    id: 'hormozi',
-    title: 'Hormozi Pop',
-    desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
-    icon: '⚡',
+    id: 'plain',
+    title: 'Standard Plain',
+    desc: 'Subtitle polos seragam tanpa highlight per kata, rapi & bersih',
+    icon: '📄',
+    defaultColor: '#FFFFFF',
+  },
+  {
+    id: 'clean',
+    title: 'Modern Clean',
+    desc: 'Ukuran font tetap seragam, highlight halus tanpa efek membesar',
+    icon: '💎',
     defaultColor: '#FFE600',
+  },
+  {
+    id: 'box-highlight',
+    title: 'Marker Badge',
+    desc: 'Highlight kotak warna per kata ala podcast, tanpa perbesaran font',
+    icon: '🏷️',
+    defaultColor: '#FFE600',
+  },
+  {
+    id: 'cinema',
+    title: 'Cinema Netflix',
+    desc: 'Gaya film & Netflix klasik, bayangan tajam & bersih tanpa box/zoom',
+    icon: '🎬',
+    defaultColor: '#FFE600',
+  },
+  {
+    id: 'underline',
+    title: 'Neon Underline',
+    desc: 'Garis bawah neon menyala pada kata aktif, font ukuran konstan',
+    icon: '⚡',
+    defaultColor: '#00FFCC',
+  },
+  {
+    id: 'minimalist',
+    title: 'Minimalist Clean',
+    desc: 'Tipografi modern elegan dengan container blur glassmorphism',
+    icon: '✨',
+    defaultColor: '#38bdf8',
   },
   {
     id: 'karaoke',
@@ -37,11 +72,11 @@ const PRESET_OPTIONS: Array<{
     defaultColor: '#00FFCC',
   },
   {
-    id: 'minimalist',
-    title: 'Minimalist Clean',
-    desc: 'Tipografi modern elegan dengan container blur glassmorphism',
-    icon: '✨',
-    defaultColor: '#38bdf8',
+    id: 'hormozi',
+    title: 'Hormozi Pop',
+    desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
+    icon: '💥',
+    defaultColor: '#FFE600',
   },
   {
     id: 'beast',
@@ -78,8 +113,8 @@ export function SubtitleStudioModal({
 
   const [wordsPerPage, setWordsPerPage] = useState<number>(3);
   const [config, setConfig] = useState<SubtitleStyleConfig>({
-    preset: 'hormozi',
-    fontSize: 52,
+    preset: 'clean',
+    fontSize: 50,
     positionY: 75,
     highlightColor: '#FFE600',
     textColor: '#FFFFFF',
@@ -87,6 +122,8 @@ export function SubtitleStudioModal({
     strokeWidth: 4,
     uppercase: true,
     wordsPerPage: 3,
+    timeOffset: 0,
+    disableHighlight: false,
   });
 
   const [isExporting, setIsExporting] = useState(false);
@@ -160,8 +197,16 @@ export function SubtitleStudioModal({
     setConfig((prev) => ({
       ...prev,
       preset,
+      disableHighlight: preset === 'plain' ? true : preset === 'clean' ? false : prev.disableHighlight,
       highlightColor: found ? found.defaultColor : prev.highlightColor,
-      fontSize: preset === 'beast' ? 58 : preset === 'minimalist' ? 42 : 52,
+      fontSize:
+        preset === 'beast'
+          ? 58
+          : preset === 'minimalist' || preset === 'cinema' || preset === 'plain'
+            ? 46
+            : preset === 'box-highlight'
+              ? 46
+              : 50,
     }));
   };
 
@@ -432,50 +477,85 @@ export function SubtitleStudioModal({
               </div>
             </div>
 
-            {/* 2. Highlight Color Palette */}
+            {/* 2. Highlight Toggle & Color Palette */}
             <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
-                Warna Highlight Kata Aktif
-              </label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {COLOR_PALETTE.map((c) => {
-                  const isSelected = config.highlightColor === c.hex;
-                  return (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() => setConfig((prev) => ({ ...prev, highlightColor: c.hex }))}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '5px 10px',
-                        borderRadius: '16px',
-                        border: isSelected
-                          ? '2px solid #ffffff'
-                          : '1px solid rgba(255, 255, 255, 0.12)',
-                        backgroundColor: 'rgba(30, 41, 59, 0.7)',
-                        cursor: 'pointer',
-                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                        transition: 'transform 0.1s ease',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          backgroundColor: c.hex,
-                          boxShadow: `0 0 8px ${c.hex}88`,
-                        }}
-                      />
-                      <span style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: isSelected ? 700 : 500 }}>
-                        {c.label}
-                      </span>
-                    </button>
-                  );
-                })}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+                  Highlight Kata Aktif
+                </label>
+                <button
+                  type="button"
+                  onClick={() => setConfig((prev) => ({ ...prev, disableHighlight: !prev.disableHighlight }))}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '3px 10px',
+                    borderRadius: '8px',
+                    border: config.disableHighlight
+                      ? '1px solid rgba(239, 68, 68, 0.4)'
+                      : '1px solid rgba(16, 185, 129, 0.4)',
+                    backgroundColor: config.disableHighlight
+                      ? 'rgba(239, 68, 68, 0.15)'
+                      : 'rgba(16, 185, 129, 0.15)',
+                    color: config.disableHighlight ? '#fca5a5' : '#6ee7b7',
+                    fontSize: '0.74rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s ease',
+                  }}
+                >
+                  <span>{config.disableHighlight ? '🚫 Tanpa Highlight' : '✨ Highlight Aktif'}</span>
+                </button>
               </div>
+
+              {!config.disableHighlight ? (
+                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                  {COLOR_PALETTE.map((c) => {
+                    const isSelected = config.highlightColor === c.hex;
+                    return (
+                      <button
+                        key={c.hex}
+                        type="button"
+                        onClick={() => setConfig((prev) => ({ ...prev, highlightColor: c.hex }))}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '5px 10px',
+                          borderRadius: '16px',
+                          border: isSelected
+                            ? '2px solid #ffffff'
+                            : '1px solid rgba(255, 255, 255, 0.12)',
+                          backgroundColor: 'rgba(30, 41, 59, 0.7)',
+                          cursor: 'pointer',
+                          transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                          transition: 'transform 0.1s ease',
+                        }}
+                      >
+                        <span
+                          style={{
+                            width: '12px',
+                            height: '12px',
+                            borderRadius: '50%',
+                            backgroundColor: c.hex,
+                            boxShadow: `0 0 8px ${c.hex}88`,
+                          }}
+                        />
+                        <span style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: isSelected ? 700 : 500 }}>
+                          {c.label}
+                        </span>
+                      </button>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div style={{ padding: '8px 12px', borderRadius: '10px', backgroundColor: 'rgba(30, 41, 59, 0.5)', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
+                  <p style={{ fontSize: '0.74rem', color: '#94a3b8', margin: 0 }}>
+                    ℹ️ Highlight per kata dinonaktifkan. Semua teks ditampilkan seragam tanpa animasi warna kata.
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* 3. Sliders: Font Size & Position Y */}
@@ -585,6 +665,208 @@ export function SubtitleStudioModal({
                   </button>
                 </div>
               </div>
+            </div>
+
+            {/* 5. Subtitle Timing Calibration (Offset Slider & Steppers) */}
+            <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.7)', padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontSize: '0.95rem' }}>⏱️</span>
+                  <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
+                    Kalibrasi Timing Subtitle (±30s)
+                  </label>
+                </div>
+
+                {/* Direct Number Input + Status Badge */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(99, 102, 241, 0.4)', borderRadius: '8px', padding: '2px 6px' }}>
+                    <input
+                      type="number"
+                      min="-30"
+                      max="30"
+                      step="0.1"
+                      value={Number((config.timeOffset || 0).toFixed(2))}
+                      onChange={(e) => {
+                        const val = parseFloat(e.target.value);
+                        setConfig((prev) => ({
+                          ...prev,
+                          timeOffset: isNaN(val) ? 0 : Math.max(-30, Math.min(30, val)),
+                        }));
+                      }}
+                      style={{
+                        width: '58px',
+                        backgroundColor: 'transparent',
+                        border: 'none',
+                        color: '#f8fafc',
+                        fontSize: '0.8rem',
+                        fontWeight: 700,
+                        textAlign: 'right',
+                        outline: 'none',
+                      }}
+                    />
+                    <span style={{ fontSize: '0.74rem', color: '#94a3b8', marginLeft: '2px' }}>s</span>
+                  </div>
+
+                  <span
+                    style={{
+                      fontSize: '0.74rem',
+                      fontWeight: 700,
+                      padding: '3px 8px',
+                      borderRadius: '6px',
+                      backgroundColor: (config.timeOffset || 0) === 0 ? 'rgba(148, 163, 184, 0.2)' : 'rgba(99, 102, 241, 0.25)',
+                      color: (config.timeOffset || 0) === 0 ? '#94a3b8' : '#818cf8',
+                    }}
+                  >
+                    {(config.timeOffset || 0) === 0
+                      ? 'Sinkron (0s)'
+                      : `${(config.timeOffset || 0) > 0 ? '+' : ''}${(config.timeOffset || 0).toFixed(1)}s (${(config.timeOffset || 0) > 0 ? 'Ditunda' : 'Dimajukan'})`}
+                  </span>
+                </div>
+              </div>
+
+              {/* Slider */}
+              <div style={{ marginBottom: '10px' }}>
+                <input
+                  type="range"
+                  min="-30"
+                  max="30"
+                  step="0.1"
+                  value={config.timeOffset || 0}
+                  onChange={(e) => setConfig((prev) => ({ ...prev, timeOffset: parseFloat(e.target.value) }))}
+                  style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer' }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
+                  <span>⏪ -30s (Maju / Earlier)</span>
+                  <span>0s</span>
+                  <span>⏩ +30s (Mundur / Delayed)</span>
+                </div>
+              </div>
+
+              {/* Quick Stepper Buttons */}
+              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', justifyContent: 'center' }}>
+                <button
+                  type="button"
+                  title="Majukan subtitle 5 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 5).toFixed(1))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  -5s
+                </button>
+                <button
+                  type="button"
+                  title="Majukan subtitle 1 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 1).toFixed(1))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  -1s
+                </button>
+                <button
+                  type="button"
+                  title="Majukan subtitle 0.2 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 0.2).toFixed(2))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  -0.2s
+                </button>
+                <button
+                  type="button"
+                  title="Reset kalibrasi ke 0 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: 0 }))}
+                  style={{
+                    padding: '4px 10px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.15)',
+                    backgroundColor: (config.timeOffset || 0) === 0 ? 'rgba(99, 102, 241, 0.35)' : 'rgba(15, 23, 42, 0.6)',
+                    color: '#ffffff',
+                    fontSize: '0.72rem',
+                    fontWeight: 700,
+                    cursor: 'pointer',
+                  }}
+                >
+                  Reset (0s)
+                </button>
+                <button
+                  type="button"
+                  title="Mundurkan subtitle 0.2 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 0.2).toFixed(2))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  +0.2s
+                </button>
+                <button
+                  type="button"
+                  title="Mundurkan subtitle 1 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 1).toFixed(1))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  +1s
+                </button>
+                <button
+                  type="button"
+                  title="Mundurkan subtitle 5 detik"
+                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 5).toFixed(1))) }))}
+                  style={{
+                    padding: '4px 8px',
+                    borderRadius: '6px',
+                    border: '1px solid rgba(255, 255, 255, 0.1)',
+                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                    color: '#e2e8f0',
+                    fontSize: '0.72rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                  }}
+                >
+                  +5s
+                </button>
+              </div>
+              <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '6px 0 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                💡 Gunakan <b>- (Maju)</b> jika teks terlambat muncul dari suara, atau <b>+ (Mundur)</b> jika teks muncul terlalu cepat. Anda juga bisa mengetikkan angka detik secara langsung.
+              </p>
             </div>
 
             {exportError && (

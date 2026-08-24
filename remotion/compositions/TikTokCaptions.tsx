@@ -10,10 +10,15 @@ import { HormoziStyle } from '../templates/HormoziStyle';
 import { KaraokeStyle } from '../templates/KaraokeStyle';
 import { MinimalistStyle } from '../templates/MinimalistStyle';
 import { BeastStyle } from '../templates/BeastStyle';
+import { CleanStyle } from '../templates/CleanStyle';
+import { PlainStyle } from '../templates/PlainStyle';
+import { BoxHighlightStyle } from '../templates/BoxHighlightStyle';
+import { CinemaStyle } from '../templates/CinemaStyle';
+import { UnderlineStyle } from '../templates/UnderlineStyle';
 
 const DEFAULT_CONFIG: SubtitleStyleConfig = {
-  preset: 'hormozi',
-  fontSize: 52,
+  preset: 'clean',
+  fontSize: 48,
   positionY: 75,
   highlightColor: '#FFE600',
   textColor: '#FFFFFF',
@@ -37,10 +42,14 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
     ...styleConfig,
   };
 
-  // Find active cue matching the current second
+  const timeOffset = config.timeOffset ?? 0;
+  // Adjusted time for manual calibration (positive = delay/later, negative = advance/earlier)
+  const adjustedTimeSec = currentTimeSec - timeOffset;
+
+  // Find active cue matching the calibrated second
   const activeCue =
     cues.find(
-      (cue) => currentTimeSec >= cue.start && currentTimeSec <= cue.end
+      (cue) => adjustedTimeSec >= cue.start && adjustedTimeSec <= cue.end
     ) || null;
 
   const positionY = config.positionY ?? 75;
@@ -76,31 +85,73 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
           zIndex: 10,
         }}
       >
+        {config.preset === 'plain' && (
+          <PlainStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
+        {config.preset === 'clean' && (
+          <CleanStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
+        {config.preset === 'box-highlight' && (
+          <BoxHighlightStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
+        {config.preset === 'cinema' && (
+          <CinemaStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
+        {config.preset === 'underline' && (
+          <UnderlineStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
         {config.preset === 'karaoke' && (
           <KaraokeStyle
             currentCue={activeCue}
-            currentTimeSec={currentTimeSec}
+            currentTimeSec={adjustedTimeSec}
             config={config}
           />
         )}
         {config.preset === 'minimalist' && (
           <MinimalistStyle
             currentCue={activeCue}
-            currentTimeSec={currentTimeSec}
+            currentTimeSec={adjustedTimeSec}
             config={config}
           />
         )}
         {config.preset === 'beast' && (
           <BeastStyle
             currentCue={activeCue}
-            currentTimeSec={currentTimeSec}
+            currentTimeSec={adjustedTimeSec}
             config={config}
           />
         )}
-        {(config.preset === 'hormozi' || !config.preset) && (
+        {config.preset === 'hormozi' && (
           <HormoziStyle
             currentCue={activeCue}
-            currentTimeSec={currentTimeSec}
+            currentTimeSec={adjustedTimeSec}
+            config={config}
+          />
+        )}
+        {!config.preset && (
+          <CleanStyle
+            currentCue={activeCue}
+            currentTimeSec={adjustedTimeSec}
             config={config}
           />
         )}

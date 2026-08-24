@@ -45,7 +45,8 @@ export const HormoziStyle: React.FC<CaptionTemplateProps> = ({
 
         // Active word bounce/pop spring animation
         const wordStartFrame = Math.round(w.start * fps);
-        const relativeFrame = Math.max(0, frame - wordStartFrame);
+        const currentFrameCalc = Math.round(currentTimeSec * fps);
+        const relativeFrame = Math.max(0, currentFrameCalc - wordStartFrame);
 
         const scale = isCurrentWord
           ? spring({

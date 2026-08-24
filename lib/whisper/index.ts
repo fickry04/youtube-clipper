@@ -3,7 +3,7 @@ import fs from 'fs/promises';
 import { existsSync } from 'fs';
 import { nodewhisper } from 'nodejs-whisper';
 import type { CaptionCue, WordTimestamp } from '../../remotion/types';
-import { generateWordLevelCues } from '../transcript/word-timestamps';
+import { generateWordLevelCues, groupWordsIntoCues } from '../transcript/word-timestamps';
 import { refineTranscriptWithGemini } from '../transcript/gemini-refiner';
 
 export interface TranscribeClipOptions {
@@ -157,34 +157,3 @@ function parseWhisperTimestamp(ts: string | number | undefined): number {
   return parseFloat(ts) || 0;
 }
 
-/**
- * Group sequential words into punchy pages (e.g. 2-3 words per cue)
- */
-function groupWordsIntoCues(
-  words: WordTimestamp[],
-  wordsPerPage: number,
-  clipDuration: number
-): CaptionCue[] {
-  const cues: CaptionCue[] = [];
-  let cueId = 1;
-  const pageSize = Math.max(1, Math.min(6, wordsPerPage));
-
-  for (let i = 0; i < words.length; i += pageSize) {
-    const pageWords = words.slice(i, i + pageSize);
-    if (pageWords.length === 0) continue;
-
-    const cueStart = pageWords[0].start;
-    const cueEnd = pageWords[pageWords.length - 1].end;
-    const text = pageWords.map((w) => w.word).join(' ');
-
-    cues.push({
-      id: cueId++,
-      start: cueStart,
-      end: Math.min(clipDuration, Math.max(cueStart + 0.2, cueEnd)),
-      text,
-      words: pageWords,
-    });
-  }
-
-  return cues;
-}

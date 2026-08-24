@@ -31,31 +31,65 @@ function calculateWordPhoneticWeight(word: string): { weight: number; pauseAfter
 }
 
 /**
- * Group sequential words into punchy pages (e.g. 2-3 words per cue)
+ * Group sequential words into punchy pages (e.g. 2-3 words per cue),
+ * splitting on natural silence gaps/delays so subtitles disappear during pauses.
  */
 export function groupWordsIntoCues(
   words: WordTimestamp[],
   wordsPerPage: number = 3,
-  clipDuration: number = 60
+  clipDuration: number = 60,
+  maxPauseGapSeconds: number = 0.5
 ): CaptionCue[] {
+  if (!words || words.length === 0) return [];
+
   const cues: CaptionCue[] = [];
   let cueId = 1;
   const pageSize = Math.max(1, Math.min(6, wordsPerPage));
 
-  for (let i = 0; i < words.length; i += pageSize) {
-    const pageWords = words.slice(i, i + pageSize);
-    if (pageWords.length === 0) continue;
+  let currentCueWords: WordTimestamp[] = [];
 
-    const cueStart = pageWords[0].start;
-    const cueEnd = pageWords[pageWords.length - 1].end;
-    const text = pageWords.map((w) => w.word).join(' ');
+  for (let i = 0; i < words.length; i++) {
+    const word = words[i];
+    const prevWord = currentCueWords[currentCueWords.length - 1];
+
+    // Detect natural pause/silence in speech
+    const isSilenceGap = prevWord && (word.start - prevWord.end >= maxPauseGapSeconds);
+    const isPageFull = currentCueWords.length >= pageSize;
+
+    if (isSilenceGap || isPageFull) {
+      if (currentCueWords.length > 0) {
+        const cueStart = currentCueWords[0].start;
+        const lastWordEnd = currentCueWords[currentCueWords.length - 1].end;
+        // Keep subtitle cue visible up to last word end (+ small 0.08s buffer for smoothness)
+        const cueEnd = Math.min(clipDuration, lastWordEnd + 0.08);
+        const text = currentCueWords.map((w) => w.word).join(' ');
+
+        cues.push({
+          id: cueId++,
+          start: cueStart,
+          end: Math.max(cueStart + 0.15, cueEnd),
+          text,
+          words: [...currentCueWords],
+        });
+        currentCueWords = [];
+      }
+    }
+
+    currentCueWords.push(word);
+  }
+
+  if (currentCueWords.length > 0) {
+    const cueStart = currentCueWords[0].start;
+    const lastWordEnd = currentCueWords[currentCueWords.length - 1].end;
+    const cueEnd = Math.min(clipDuration, lastWordEnd + 0.08);
+    const text = currentCueWords.map((w) => w.word).join(' ');
 
     cues.push({
       id: cueId++,
       start: cueStart,
-      end: Math.min(clipDuration, Math.max(cueStart + 0.2, cueEnd)),
+      end: Math.max(cueStart + 0.15, cueEnd),
       text,
-      words: pageWords,
+      words: [...currentCueWords],
     });
   }
 

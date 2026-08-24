@@ -41,7 +41,8 @@ export const BeastStyle: React.FC<CaptionTemplateProps> = ({
           currentTimeSec >= w.start && currentTimeSec <= w.end;
 
         const wordStartFrame = Math.round(w.start * fps);
-        const relativeFrame = Math.max(0, frame - wordStartFrame);
+        const currentFrameCalc = Math.round(currentTimeSec * fps);
+        const relativeFrame = Math.max(0, currentFrameCalc - wordStartFrame);
 
         const bounce = isCurrentWord
           ? spring({
