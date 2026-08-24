@@ -893,6 +893,9 @@ export function VideoDetailManager({
                               <div className="clip-action-group">
                                 <GenerateSubtitleButton
                                   clipId={clip.id}
+                                  clipTitle={clip.title}
+                                  clipRank={clip.rank}
+                                  durationSeconds={clip.durationSeconds}
                                   hasSubtitle={hasSubtitles}
                                   hasClipAsset={isCompleted}
                                   hasVertical={Boolean(clip.hasVertical)}

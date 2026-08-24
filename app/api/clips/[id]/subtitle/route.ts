@@ -1,5 +1,5 @@
 /**
- * GET  /api/clips/[id]/subtitle  — fetch existing SRT subtitle content
+ * GET  /api/clips/[id]/subtitle  — fetch SRT or Remotion word-level cues (with local Whisper extraction)
  * POST /api/clips/[id]/subtitle  — enqueue subtitle generation worker job
  *
  * Ownership chain: clip → viralAnalysis → video → project → user
@@ -8,8 +8,10 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import { db } from '@/lib/prisma';
-import { getStorage, StorageKeys } from '@/lib/storage';
+import { getStorage, StorageKeys, LocalStorageService } from '@/lib/storage';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
+import { cuesToSrt, generateWordLevelCues } from '@/lib/transcript/word-timestamps';
+import { transcribeClipLocally } from '@/lib/whisper';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
 
 export async function GET(
@@ -25,10 +27,11 @@ export async function GET(
 
   const { id: clipId } = await params;
   const { searchParams } = new URL(request.url);
-  const format = searchParams.get('format') ?? 'srt';
+  const format = searchParams.get('format') ?? 'cues';
+  const wordsPerPage = parseInt(searchParams.get('wordsPerPage') || '3', 10);
 
   try {
-    // Ownership check
+    // Ownership check & load clip with transcript
     const clip = await db.clip.findFirst({
       where: {
         id: clipId,
@@ -36,7 +39,18 @@ export async function GET(
           video: { project: { userId: session.user.id } },
         },
       },
-      select: { id: true },
+      include: {
+        viralAnalysis: {
+          include: {
+            video: {
+              include: {
+                transcript: true,
+              },
+            },
+          },
+        },
+        subtitles: true,
+      },
     });
 
     if (!clip) {
@@ -46,20 +60,91 @@ export async function GET(
       );
     }
 
-    const subtitle = await db.subtitle.findUnique({
-      where: { clipId_format: { clipId, format } },
-    });
+    // 1. Check if there is saved Remotion metadata JSON
+    const jsonSub = clip.subtitles.find((s) => s.format === 'json');
+    let savedCues: any[] | null = null;
+    let savedStyleConfig: any = null;
 
-    if (!subtitle) {
-      return Response.json(
-        { success: false, error: `No subtitle in format "${format}" found for this clip.` },
-        { status: 404 }
-      );
+    if (jsonSub && jsonSub.content) {
+      try {
+        const parsed = JSON.parse(jsonSub.content);
+        if (Array.isArray(parsed.cues)) savedCues = parsed.cues;
+        if (parsed.styleConfig) savedStyleConfig = parsed.styleConfig;
+      } catch {}
+    }
+
+    let cues = savedCues;
+
+    // 2. If no saved cues exist yet, try running local Whisper on the clip file
+    if (!cues || cues.length === 0) {
+      const storage = getStorage();
+      const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
+      const originalKey = StorageKeys.clipVideo(session.user.id, clipId);
+
+      let mediaPath: string | null = null;
+      if (await storage.exists(verticalKey)) {
+        mediaPath = storage instanceof LocalStorageService
+          ? storage.getAbsolutePath(verticalKey)
+          : await storage.get(verticalKey);
+      } else if (await storage.exists(originalKey)) {
+        mediaPath = storage instanceof LocalStorageService
+          ? storage.getAbsolutePath(originalKey)
+          : await storage.get(originalKey);
+      }
+
+      const transcript = clip.viralAnalysis.video.transcript;
+      const rawSegments = (transcript?.segments as any[]) || [];
+
+      if (mediaPath) {
+        cues = await transcribeClipLocally({
+          mediaPath,
+          clipDurationSeconds: clip.durationSeconds,
+          wordsPerPage,
+          fallbackSegments: rawSegments,
+          clipStartSeconds: clip.startSeconds,
+        });
+      } else {
+        cues = generateWordLevelCues(
+          rawSegments,
+          clip.startSeconds,
+          clip.durationSeconds,
+          wordsPerPage
+        );
+      }
+
+      // Cache the generated cues in database
+      if (cues && cues.length > 0) {
+        await db.subtitle.upsert({
+          where: { clipId_format: { clipId, format: 'json' } },
+          update: {
+            content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
+            updatedAt: new Date(),
+          },
+          create: {
+            clipId,
+            format: 'json',
+            content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
+          },
+        }).catch(() => {});
+      }
+    }
+
+    if (format === 'cues' || format === 'json') {
+      return Response.json({
+        success: true,
+        clipId,
+        cues: cues || [],
+        styleConfig: savedStyleConfig,
+        duration: clip.durationSeconds,
+        title: clip.title,
+      });
     }
 
     if (format === 'srt') {
-      // Return raw SRT as text/plain for direct use by video players
-      return new Response(subtitle.content, {
+      const dbSrt = clip.subtitles.find((s) => s.format === 'srt')?.content;
+      const srtContent = dbSrt || (cues ? cuesToSrt(cues) : '');
+
+      return new Response(srtContent, {
         headers: {
           'Content-Type': 'text/plain; charset=utf-8',
           'Cache-Control': 'private, max-age=3600',
@@ -70,12 +155,12 @@ export async function GET(
     return Response.json({
       success: true,
       clipId,
-      format: subtitle.format,
-      content: subtitle.content,
-      createdAt: subtitle.createdAt,
+      cues: cues || [],
+      styleConfig: savedStyleConfig,
+      duration: clip.durationSeconds,
     });
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Failed to fetch subtitle.';
+    const message = err instanceof Error ? err.message : 'Failed to fetch subtitle cues.';
     return Response.json({ success: false, error: message }, { status: 500 });
   }
 }
@@ -97,12 +182,12 @@ export async function POST(
 
   const { id: clipId } = await params;
 
-  let aspectRatio: '16:9' | '9:16' | 'all' = 'all';
+  let aspectRatio: '16:9' | '9:16' | 'all' = '9:16';
+  let styleConfig: any = {};
   try {
     const body = await request.json().catch(() => ({}));
-    if (body.aspectRatio === '16:9' || body.aspectRatio === '9:16' || body.aspectRatio === 'all') {
-      aspectRatio = body.aspectRatio;
-    }
+    if (body.aspectRatio) aspectRatio = body.aspectRatio;
+    if (body.styleConfig) styleConfig = body.styleConfig;
   } catch {
     // Ignore JSON parsing errors and use default
   }
@@ -153,7 +238,7 @@ export async function POST(
         videoId,
         type: 'GENERATE_SUBTITLE',
         status: 'QUEUED',
-        payload: { clipId, aspectRatio },
+        payload: { clipId, aspectRatio, styleConfig },
       },
     });
 
@@ -165,6 +250,7 @@ export async function POST(
         userId: session.user.id,
         clipId,
         aspectRatio,
+        styleConfig,
       } satisfies GenerateSubtitlePayload,
       { jobId: job.id }
     );

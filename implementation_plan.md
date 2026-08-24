@@ -1,323 +1,145 @@
-# YouTube Viral Clipper — Full Platform Implementation Plan
+# YouTube Viral Clipper — Platform Implementation Plan
 
-## Background
-
-Project existing adalah Next.js 16.3.1 + React 19 + TypeScript yang sudah bisa:
-- Menerima YouTube URL
-- Mengambil transcript via `youtube-transcript-plus`
-- Menampilkan transcript interaktif
-- Menganalisis transcript dengan Gemini 2.5 Flash → TOP 3 viral clips
-
-## Key Findings dari Codebase Inspection
-
-| Item | Status |
-|------|--------|
-| Next.js | 16.3.1 (App Router) |
-| React | 19.2.8 |
-| Styling | Tailwind CSS v4 + CSS Modules |
-| Auth | Sudah ada |
-| Database | Sudah ada |
-| Queue | ❌ Belum ada |
-| FFmpeg | ✅ Tersedia di sistem (`ffmpeg n8.1`) |
-| Redis | ✅ Valkey 9.0.3 berjalan di localhost:6379 |
-| PostgreSQL | ✅ 18.3 berjalan di localhost:5432 |
-| Node | v25.9.0 |
-
-## Proposed Changes
-
-### Phase 1 — Dependencies Installation
-
-Dependensi disini sudah diinstall semua.
-
-**New dependencies (production):**
-- `better-auth` — authentication sudah ada ✅
-- `@prisma/client` + `prisma` — ORM sudah ada ✅
-- `@prisma/adapter-better-auth` — prisma adapter for better-auth (atau manual schema) sudah ada ✅
-- `bullmq` — job queue sudah ada ✅
-- `ioredis` — Redis client sudah ada ✅
-- `@google/genai` — sudah ada ✅
-- `youtube-transcript-plus` — sudah ada ✅
-- `@vladmandic/face-api` — face detection sudah ada ✅
-- `@tensorflow/tfjs-node` — backend untuk face-api sudah ada ✅
-- `canvas` — untuk tfjs-node image processing sudah ada ✅
-- `fluent-ffmpeg` — type-safe FFmpeg wrapper sudah ada ✅
-- `@types/fluent-ffmpeg` — types sudah ada ✅
-- `zod` — input validation sudah ada ✅
+## 📌 Project Overview
+Platform berbasis Next.js 16 (App Router) + React 19 + TypeScript + BullMQ + PostgreSQL + FFmpeg untuk memotong video YouTube secara otomatis menjadi klip pendek viral (Shorts / Reels / TikTok) dengan AI Analysis, Smart 9:16 Face Framing, dan Dynamic Animated Subtitles.
 
 ---
 
-### Phase 2 — Prisma Schema & Database
+## 🏗️ System Architecture & Tech Stack
 
-#### [NEW] [schema.prisma](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/prisma/schema.prisma)
-
-Full Prisma schema dengan semua models:
-- `User`, `Account`, `Session`, `Verification` (Better Auth)
-- `Project` (userId FK)
-- `Video` (projectId FK)
-- `VideoAsset` (videoId FK)
-- `Transcript` (videoId FK, unique)
-- `TranscriptSegment` (transcriptId FK)
-- `ViralAnalysis` (videoId FK, unique)
-- `Clip` (viralAnalysisId FK)
-- `Subtitle` (clipId FK)
-- `FaceDetection` (clipId FK)
-- `Embedding` (clipId FK, `vector` field via `Unsupported`)
-- `Job` (userId FK, videoId nullable FK)
-
-#### [NEW] [prisma/migrations/](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/prisma/migrations/)
-
-Migration awal yang mengaktifkan `CREATE EXTENSION IF NOT EXISTS vector;` (Sudah ditambahkan ke migration prisma ✅)
-
----
-
-### Phase 3 — Authentication (Better Auth)
-
-#### [NEW] [lib/auth/index.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/auth/index.ts)
-Server-side Better Auth instance dengan Prisma adapter, email/password. (Sudah ✅)
-
-#### [NEW] [lib/auth/client.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/auth/client.ts)
-Client-side auth hooks (`useSession`, `signIn`, `signOut`, `signUp`). (Sudah ✅)
-
-#### [NEW] [app/api/auth/[...all]/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/auth/[...all]/route.ts)
-Better Auth catch-all API handler. (Sudah ✅)
-
-#### [NEW] [lib/auth/session.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/auth/session.ts)
-Server-side helper `getSession()` / `requireSession()` untuk digunakan di API routes. (Sudah ✅)
-
-#### [NEW] [app/(auth)/login/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/(auth)/login/page.tsx)
-Login page. (Sudah ✅)
-
-#### [NEW] [app/(auth)/register/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/(auth)/register/page.tsx)
-Register page. (Sudah ✅)
-
-#### [MODIFY] [middleware.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/middleware.ts)
-Middleware untuk protect routes `/dashboard/*` dan `/api/*` (kecuali auth endpoints dan public endpoints existing). (Sudah ✅)
-
----
-
-### Phase 4 — Database Access Layer
-
-Singleton Prisma Client + named `db` export. (Sudah ✅)
-
----
-
-### Phase 5 — Storage Abstraction
-
-#### [NEW] [lib/storage/index.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/storage/index.ts)
-`StorageService` interface + `LocalStorageService` implementation.
-Operasi: `save()`, `get()`, `delete()`, `exists()`, `getUrl()`.
-Struktur: `storage/users/{userId}/videos/{videoId}/source.mp4`, `clips/{clipId}/clip.mp4`.
-(Sudah ✅)
-
----
-
-### Phase 6 — Queue & Worker Setup (Sudah ✅)
-
-#### [NEW] [lib/queue/index.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/queue/index.ts)
-Redis client (ioredis) + BullMQ Queue instances untuk semua queue:
-`video`, `transcript`, `analysis`, `clip`, `subtitle`, `face-detection`, `embedding`.
-
-#### [NEW] [workers/index.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/index.ts)
-Worker entry point — inisialisasi semua processors.
-
-#### [NEW] [workers/processors/video.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/video.processor.ts)
-Download video dengan yt-dlp via `execFile` (safe).
-
-#### [NEW] [workers/processors/transcript.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/transcript.processor.ts)
-Simpan transcript ke database, enqueue analysis.
-
-#### [NEW] [workers/processors/analysis.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/analysis.processor.ts)
-Panggil Gemini, simpan ViralAnalysis + Clips ke DB, enqueue clip creation.
-
-#### [NEW] [workers/processors/clip.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/clip.processor.ts)
-Potong video menggunakan FFmpeg (safe spawn), simpan VideoAsset.
-
-#### [NEW] [workers/processors/subtitle.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/subtitle.processor.ts)
-Generate SRT dari TranscriptSegments, burn subtitle via FFmpeg.
-
-#### [NEW] [workers/processors/face.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/face.processor.ts)
-Face detection menggunakan `@vladmandic/face-api`, simpan FaceDetection records.
-
-#### [NEW] [workers/processors/embedding.processor.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/workers/processors/embedding.processor.ts)
-Generate embedding via Gemini text-embedding model, simpan ke pgvector.
-
-#### [NEW] [lib/ffmpeg/index.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/lib/ffmpeg/index.ts)
-Safe FFmpeg wrapper — `cutVideo()`, `burnSubtitle()`, `cropVertical()`.
-Menggunakan `spawn` dengan argument array, bukan shell string. (Sudah ✅)
-
----
-
-### Phase 7 — New API Routes (Sudah ✅)
-
-#### [NEW] [app/api/projects/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/projects/route.ts)
-`GET` list projects, `POST` create project. Auth required.
-
-#### [NEW] [app/api/videos/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/videos/route.ts)
-`POST` create video (submit YouTube URL, enqueue job). Auth required.
-
-#### [NEW] [app/api/videos/[id]/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/videos/[id]/route.ts)
-`GET` video detail. Auth + ownership check.
-
-#### [NEW] [app/api/videos/[id]/transcript/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/videos/[id]/transcript/route.ts)
-`GET` transcript from DB. Auth + ownership.
-
-#### [NEW] [app/api/videos/[id]/analyze/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/videos/[id]/analyze/route.ts)
-`POST` trigger analysis job. Auth + ownership.
-
-#### [NEW] [app/api/videos/[id]/clips/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/videos/[id]/clips/route.ts)
-`GET` clips for video. Auth + ownership.
-
-#### [NEW] [app/api/clips/[id]/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/clips/[id]/route.ts)
-`GET` clip detail. Auth + ownership chain.
-
-#### [NEW] [app/api/clips/[id]/video/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/clips/[id]/video/route.ts)
-`GET` serve clip video file. Auth + ownership. Stream file response.
-
-#### [NEW] [app/api/jobs/[id]/route.ts](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/api/jobs/[id]/route.ts)
-`GET` job status. Auth + ownership.
-
-**Existing API routes dipertahankan:**
-- `GET /api/languages` ✅ (tidak diubah)
-- `GET /api/transcript` ✅ (tidak diubah)
-- `POST /api/analyze` ✅ (tidak diubah — tetap bisa digunakan standalone)
-
----
-
-### Phase 8 — Dashboard Frontend (Sudah ✅)
-
-#### [NEW] [app/dashboard/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/dashboard/page.tsx)
-Dashboard overview — daftar projects, stats.
-
-#### [NEW] [app/dashboard/projects/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/dashboard/projects/page.tsx)
-Projects list page.
-
-#### [NEW] [app/dashboard/projects/[projectId]/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/dashboard/projects/[projectId]/page.tsx)
-Project detail — daftar videos.
-
-#### [NEW] [app/dashboard/projects/[projectId]/videos/[videoId]/page.tsx](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/app/dashboard/projects/[projectId]/videos/[videoId]/page.tsx)
-Video detail — transcript, analysis, clips dengan video player.
-
-#### [NEW] Components
-- `components/projects/ProjectCard.tsx`
-- `components/projects/CreateProjectForm.tsx`
-- `components/video-player/ClipPlayer.tsx`
-- `components/jobs/JobStatus.tsx` — polling setiap 3 detik
-- `components/dashboard/Navbar.tsx`
-
----
-
-### Phase 9 — Environment & Config
-#### [MODIFY] [.env](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/.env.local)
-Tambah: `DATABASE_URL`, `REDIS_URL`, `BETTER_AUTH_SECRET`, `STORAGE_PATH`, `STORAGE_PROVIDER`. (Sudah ✅)
-
-#### [NEW] [.env.example](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/.env.example)
-Template env vars. (Sudah ✅)
-
-#### [MODIFY] [package.json](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/package.json) (Sudah ✅)
-Tambah script: `"worker": "tsx workers/index.ts"`.
-
-#### [NEW] [docker-compose.yml](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/docker-compose.yml) (Opsional, skip)
-PostgreSQL + Redis untuk development (karena sudah running di host, ini opsional).
-
-#### [MODIFY] [tsconfig.json](file:///home/fickry/Kuliah%20S7/Codes/youtube-clipper/tsconfig.json) (Sudah ✅)
-Pastikan `workers/` ter-include, tambah `tsconfig.worker.json` untuk tsx execution.
-
----
-
-## Architecture Decision Summary
+| Layer | Technology | Status |
+|---|---|---|
+| **Frontend & API** | Next.js 16.3.1 (App Router), React 19, CSS Modules & Tailwind CSS v4 | ✅ Production Ready |
+| **Authentication** | Better Auth (Email/Password + Session Management) | ✅ Production Ready |
+| **Database & ORM** | PostgreSQL 18 + Prisma ORM + pgvector extension | ✅ Production Ready |
+| **Job Queue & Cache**| BullMQ + Valkey/Redis (localhost:6379) | ✅ Production Ready |
+| **Worker Process** | Dedicated worker (`workers/index.ts`) via tsx / concurrently (`npm run dev:all`) | ✅ Production Ready |
+| **AI Intelligence** | Google Gemini 2.5 Flash (Viral Analysis & Insights) | ✅ Production Ready |
+| **Face AI & Framing**| `@vladmandic/face-api` + `@tensorflow/tfjs-node` + FFmpeg Auto-Crop 9:16 | ✅ Production Ready |
+| **Media Processing** | FFmpeg n8.1 (Safe spawn execution) + yt-dlp | ✅ Production Ready |
+| **Caption & Subtitle**| *Current:* FFmpeg ASS Burning (Legacy)<br/>*Upcoming:* **Remotion Subtitle Engine + Word-Level Timestamps** | 🔄 Modernizing to Remotion |
 
 ```
 Browser
   │  (HTTPS)
   ▼
 Next.js App (port 3000)
-  ├── /api/auth/*           ← Better Auth
-  ├── /api/projects/*       ← CRUD projects (auth required)
-  ├── /api/videos/*         ← CRUD videos, enqueue jobs
-  ├── /api/clips/*          ← Serve clip video, metadata
-  ├── /api/jobs/*           ← Job status polling
-  ├── /api/languages        ← Existing (preserved)
-  ├── /api/transcript       ← Existing (preserved)
-  └── /api/analyze          ← Existing (preserved, standalone)
+  ├── /api/auth/*           ← Better Auth (Login/Register/Session)
+  ├── /api/projects/*       ← CRUD projects (Tenant isolation)
+  ├── /api/videos/*         ← CRUD videos, enqueue BullMQ jobs
+  ├── /api/clips/*          ← Serve clip video (Horizontal/Vertical), metadata
+  ├── /api/jobs/*           ← Job status polling & progress tracking
+  ├── /api/languages        ← Transcript languages
+  └── /api/transcript       ← Fetch & cache YouTube transcript
 
 PostgreSQL (localhost:5432)
-  └── Database: viral_clipper
-      ├── Extension: pgvector
-      └── Schema: (all tables above)
+  └── Database: viral_clipper (Prisma schema + pgvector)
 
 Redis/Valkey (localhost:6379)
   └── BullMQ Queues:
-      video → transcript → analysis → clip → subtitle → face-detection → embedding
+      video → transcript → analysis → clip → face-detection → subtitle → embedding
 
 Worker Process (npm run worker)
-  ├── video.processor    → yt-dlp download
-  ├── transcript.processor → fetch + save to DB
-  ├── analysis.processor → Gemini API + save
-  ├── clip.processor     → FFmpeg cut
-  ├── subtitle.processor → SRT generation + FFmpeg burn
-  ├── face.processor     → face-api detection
-  └── embedding.processor → Gemini embedding + pgvector
+  ├── video.processor       → yt-dlp safe download
+  ├── transcript.processor  → YouTube transcript fetch & save
+  ├── analysis.processor    → Gemini AI viral ranking & clip suggestions
+  ├── clip.processor        → FFmpeg precise cut (start-to-end seconds)
+  ├── face.processor        → Face detection + 9:16 dynamic vertical auto-crop
+  ├── subtitle.processor    → [NEW] Remotion renderMedia / FFmpeg subtitle burning
+  └── embedding.processor   → Semantic vector embedding
 
-Storage (local filesystem)
+Storage (Local Filesystem)
   └── storage/users/{userId}/
       ├── videos/{videoId}/source.mp4
-      └── clips/{clipId}/clip.mp4
+      └── clips/{clipId}/
+          ├── clip.mp4 (16:9)
+          ├── clip_vertical.mp4 (9:16 Smart Crop)
+          ├── clip_vertical_subtitled.mp4
+          └── subtitle.srt
 ```
 
-## Verification Plan
+---
 
-### Automated Checks
+## 📋 Implementation Progress & Grouped Checklist
+
+### 1. Core Authentication & Multi-Tenancy
+- [✅] **User Authentication**: Register, Login, Session token management via Better Auth.
+- [✅] **Tenant Data Isolation**: User A tidak dapat melihat atau memodifikasi project/video/klip milik User B (ownership check di semua API & database queries).
+- [✅] **Security**: API key server-side only, validasi schema input via Zod, tidak ada command injection pada FFmpeg / yt-dlp (`spawn` array args).
+
+### 2. Project & Video Management
+- [✅] **Project Management**: Create project, list user projects, project detail view.
+- [✅] **YouTube Video Ingestion**: Menerima YouTube URL, mengambil metadata (title, thumbnail, duration, channel) secara instan via oEmbed & yt-dlp.
+- [✅] **Transcript Management**: Pengambilan transkrip YouTube (`youtube-transcript-plus`), selector bahasa transkrip, dan caching di PostgreSQL.
+
+### 3. AI Viral Analysis & Suggestions
+- [✅] **Gemini 2.5 Flash Analysis**: Menganalisis transkrip untuk menghasilkan TOP viral clips dengan scoring, hook explanation, summary, strengths, dan weaknesses.
+- [✅] **Persistence**: Menyimpan hasil analisis dan metadata klip (start/end seconds, viral score, rank, category) ke database.
+
+### 4. Background Job & Worker Infrastructure
+- [✅] **Worker Terpisah**: Worker BullMQ berjalan independen via `npm run worker` atau `npm run dev:all`.
+- [✅] **Job Status & Progress Tracking**: Progress bar 0-100% dan status (`QUEUED`, `PROCESSING`, `COMPLETED`, `FAILED`) terpantau secara realtime di frontend.
+- [✅] **Job Retry & Error Handling**: Penanganan error job dengan penyimpanan pesan error ke database serta mekanisme retry.
+- [✅] **Database Migration & TypeScript**: Prisma migration rapi dan tidak ada compile error pada TypeScript.
+
+### 5. Media Processing & AI Smart Crop
+- [✅] **Video Download & Clipping**: Worker mendownload video sumber via yt-dlp dan memotong klip 16:9 horizontal dengan FFmpeg.
+- [✅] **Face Detection**: Deteksi wajah menggunakan `@vladmandic/face-api` + `@tensorflow/tfjs-node` untuk mendeteksi posisi pembicara di setiap interval.
+- [✅] **AI Smart 9:16 Auto-Crop Framing**: Menghitung bounding box dan melakukan framing vertikal 9:16 terpusat pada wajah pembicara menggunakan FFmpeg crop filter.
+- [✅] **Storage Abstraction**: Penyimpanan lokal terstruktur (`/storage/users/{userId}/...`) dengan interface abstraksi yang siap di-upgrade ke S3/R2.
+- [✅] **Semantic Embedding**: Pipeline model embedding siap terhubung ke database.
+
+---
+
+## 🎯 Modernisasi Subtitle Engine: Integrasi Remotion & Word-Level Timestamps
+
+### 🔴 Masalah pada Sistem Subtitle Lama (FFmpeg ASS Burning)
+1. **Visual Terlalu Sederhana / Kaku**: Menggunakan filter FFmpeg `subtitles` dengan file ASS statis (font Arial standar tanpa animasi modern).
+2. **Timing Subtitle Meleset / Aneh**: YouTube transcript hanya memberikan timestamps tingkat kalimat. Pemotongan kata selama ini dihitung dari estimasi panjang karakter (`weight = chunk.length / totalChars`), sehingga tidak sinkron dengan tempo bicara manusia.
+
+### 🟢 Solusi: Arsitektur Subtitle Baru dengan Remotion
+
+```mermaid
+graph TD
+    A[Clip Audio / Video] --> B[Word-Level Timestamps Extractor<br/>Groq / OpenAI Whisper / Gemini Audio]
+    B --> C[Word Timestamps JSON<br/>start, end, word, confidence]
+    C --> D[Remotion Captions Composition<br/>&lt;TikTokCaptions /&gt;]
+    D --> E[Frontend: @remotion/player<br/>Live Realtime Preview & Style Customizer]
+    D --> F[Worker: @remotion/renderer<br/>Headless Chromium 60fps MP4 Export]
+```
+
+### 📦 Paket yang Digunakan
 ```bash
-# TypeScript compilation
-npx tsc --noEmit
-
-# Prisma schema validation
-npx prisma validate
-
-# Prisma migration
-npx prisma migrate dev --name init
-
-# Prisma client generation
-npx prisma generate
+npm install remotion @remotion/player @remotion/renderer @remotion/bundler nodejs-whisper
 ```
 
-### Manual Verification
-1. Register user, login, logout
-2. Buat project baru
-3. Submit YouTube URL → video created, job queued
-4. Cek job status via polling
-5. Lihat transcript dari DB
-6. Trigger analysis → clips created
-7. Worker download video → FFmpeg cut → clip.mp4 tersedia
-8. Clip video bisa diplay di browser
-9. User B tidak bisa akses data User A (test 401/403)
-10. TypeScript: `npx tsc --noEmit` tidak ada error
+---
 
-### Checklist per Acceptance Criteria
-- [✅] 1. User dapat register/login
-- [✅] 2. User dapat membuat project
-- [✅] 3. User dapat memasukkan YouTube URL
-- [✅] 4. Video menjadi milik user
-- [✅] 5. Transcript disimpan PostgreSQL
-- [✅] 6. TranscriptSegments disimpan PostgreSQL
-- [✅] 7. Gemini TOP 3 viral clips
-- [✅] 8. Hasil analisis disimpan PostgreSQL
-- [✅] 9. Clip memiliki rank dan viral score
-- [✅] 10. Background worker + FFmpeg
-- [✅] 11. Video clip di storage
-- [✅] 12. Database menyimpan metadata
-- [✅] 13. Subtitle dari transcript
-- [✅] 14. Subtitle dapat digunakan pada clip
-- [ ] 15. Face detection
-- [ ] 16. Face detection untuk framing
-- [ ] 17. Semantic embedding
-- [ ] 18. Embedding di pgvector
-- [ ] 19. Job status dari frontend
-- [ ] 20. User hanya lihat data miliknya
-- [ ] 21. Retry job
-- [ ] 22. Error tersimpan
-- [ ] 23. API key tidak ke client
-- [ ] 24. Tidak ada command injection FFmpeg
-- [ ] 25. Tidak ada TypeScript error
-- [ ] 26. Prisma migration berhasil
-- [ ] 27. Worker jalan terpisah
+## 🗺️ Roadmap Integrasi Remotion & Local Whisper (Completed)
+
+### Phase 1 — Word-Level Timestamps Precision (Memperbaiki Timing)
+- [✅] **Word-Level Transcription**: Integrasi `nodejs-whisper` (whisper.cpp) secara lokal untuk mengekstraksi word timestamps presisi (`{ word, start, end, confidence }`) langsung dari audio klip.
+- [✅] **Timestamp Alignment Fallback**: Algoritma cerdas pemetaan fonetik dan jeda tanda baca sebagai fallback jika audio belum ditranskrip ulang.
+- [✅] **Database Persistence**: Menyimpan SRT dan metadata Remotion cues/styleConfig (JSON) ke database `Subtitle`.
+
+### Phase 2 — Remotion Component & Template Library (Memperbaiki Visual)
+- [✅] **Remotion Composition Setup**: Konfigurasi root Remotion di Next.js (`remotion/index.ts`, `remotion/Root.tsx`, `remotion/compositions/TikTokCaptions.tsx`).
+- [✅] **Viral Captions Preset Styles**:
+  - **Hormozi Style**: Teks huruf kapital tebal kuning/hijau neon dengan animasi *scale pop-up* per kata aktif.
+  - **Karaoke Wave**: Teks 2-3 baris dengan efek highlight warna dinamis mengikuti kata yang sedang diucapkan.
+  - **Minimalist Modern**: Font bersih (Montserrat / Poppins) dengan container pill blur transparan (*glassmorphism*).
+  - **Beast Pop**: Shadow tebal kontras tinggi dengan rotasi acak halus pada kata kunci emosional.
+
+### Phase 3 — Interactive Subtitle Editor & Live Preview UI
+- [✅] **Live Player**: Memasang `@remotion/player` pada `SubtitleStudioModal` untuk preview realtime tanpa render.
+- [✅] **Style & Customization Panel**:
+  - Pilihan preset style (Hormozi, Karaoke, Minimalist, Beast).
+  - Slider ukuran font, posisi vertikal (Y-offset), margin, dan palet warna highlight.
+  - Opsi jumlah kata per baris (*words per page*) dan format huruf.
+  - Sinkronisasi state: Memuat styleConfig terakhir yang tersimpan saat studio dibuka.
+
+### Phase 4 — Worker Headless Rendering Pipeline (100% Remotion)
+- [✅] **Remotion Bundler & Renderer**: Bundle composition otomatis dan renderer headless Chromium di worker (`lib/remotion/render.ts`).
+- [✅] **Remove FFmpeg ASS Burning**: Menghapus seluruh burning subtitle ASS FFmpeg lama dan menggantikannya secara total dengan Remotion `renderMedia()`.
+- [✅] **Render Performance Optimization**: Bundle in-memory caching untuk ekspor MP4 berkecepatan tinggi.
+

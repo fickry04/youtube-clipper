@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { formatTimestamp } from '@/lib/utils';
 import type { ViralClip, ViralAnalysisResult, ViralCategory, TranscriptSegment } from '@/lib/types';
 
-const MODEL_NAME = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-3.6-flash';
 const TOP_N = 3;
 const MAX_TRANSCRIPT_BYTES = 500_000;
 

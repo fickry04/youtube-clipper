@@ -68,7 +68,9 @@ export interface GenerateSubtitlePayload {
   userId: string;
   clipId: string;
   aspectRatio?: '16:9' | '9:16' | 'all';
+  styleConfig?: any;
 }
+
 
 export interface FaceDetectionPayload {
   jobId: string;
