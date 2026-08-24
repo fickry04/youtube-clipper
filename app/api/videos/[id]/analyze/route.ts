@@ -5,7 +5,7 @@ import { GoogleGenAI } from '@google/genai';
 import { formatTimestamp } from '@/lib/utils';
 import type { ViralClip, ViralAnalysisResult, ViralCategory, TranscriptSegment } from '@/lib/types';
 
-const MODEL_NAME = 'gemini-2.5-flash';
+const MODEL_NAME = 'gemini-3.6-flash';
 const TOP_N = 5;
 const MAX_TRANSCRIPT_BYTES = 2_000_000;
 
@@ -35,7 +35,7 @@ A good viral clip should have: a strong opening, clear context, a payoff, emotio
 
 Avoid clips that: start too slowly, require too much previous context, contain incomplete sentences, are mostly greetings/introduction, are repetitive, have no clear payoff.
 
-The clip should normally be between 30 and 180 seconds.
+The clip should normally be between 30 and 180 seconds. Make sure the resulting transcript contains the full speech/talk of the clip, not cut off while the conversation or talk is still going on.
 
 Return ONLY valid JSON with indonesia language (for title, hook, summary, why_viral, strengths, weaknesses, and overall_summary). Do not include markdown code blocks or any other text outside the JSON.`;
 

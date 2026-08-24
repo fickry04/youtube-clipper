@@ -31,6 +31,38 @@ function calculateWordPhoneticWeight(word: string): { weight: number; pauseAfter
 }
 
 /**
+ * Group sequential words into punchy pages (e.g. 2-3 words per cue)
+ */
+export function groupWordsIntoCues(
+  words: WordTimestamp[],
+  wordsPerPage: number = 3,
+  clipDuration: number = 60
+): CaptionCue[] {
+  const cues: CaptionCue[] = [];
+  let cueId = 1;
+  const pageSize = Math.max(1, Math.min(6, wordsPerPage));
+
+  for (let i = 0; i < words.length; i += pageSize) {
+    const pageWords = words.slice(i, i + pageSize);
+    if (pageWords.length === 0) continue;
+
+    const cueStart = pageWords[0].start;
+    const cueEnd = pageWords[pageWords.length - 1].end;
+    const text = pageWords.map((w) => w.word).join(' ');
+
+    cues.push({
+      id: cueId++,
+      start: cueStart,
+      end: Math.min(clipDuration, Math.max(cueStart + 0.2, cueEnd)),
+      text,
+      words: pageWords,
+    });
+  }
+
+  return cues;
+}
+
+/**
  * Generate accurate word-level cues and grouped caption pages for short-form video.
  */
 export function generateWordLevelCues(
@@ -39,9 +71,6 @@ export function generateWordLevelCues(
   clipDuration: number,
   wordsPerPage: number = 3
 ): CaptionCue[] {
-  const cues: CaptionCue[] = [];
-  let cueId = 1;
-
   // 1. Filter overlapping transcript segments for this clip
   const overlapping = segments.filter((s) => {
     const sEnd = s.offset + s.duration;
@@ -94,27 +123,8 @@ export function generateWordLevelCues(
     }
   }
 
-  // 3. Group words into punchy pages (e.g. 2-3 words per screen)
-  const pageSize = Math.max(1, Math.min(6, wordsPerPage));
-
-  for (let i = 0; i < allClipWords.length; i += pageSize) {
-    const pageWords = allClipWords.slice(i, i + pageSize);
-    if (pageWords.length === 0) continue;
-
-    const cueStart = pageWords[0].start;
-    const cueEnd = pageWords[pageWords.length - 1].end;
-    const text = pageWords.map((w) => w.word).join(' ');
-
-    cues.push({
-      id: cueId++,
-      start: cueStart,
-      end: Math.max(cueStart + 0.2, cueEnd),
-      text,
-      words: pageWords,
-    });
-  }
-
-  return cues;
+  // 3. Group words into punchy pages
+  return groupWordsIntoCues(allClipWords, wordsPerPage, clipDuration);
 }
 
 /**

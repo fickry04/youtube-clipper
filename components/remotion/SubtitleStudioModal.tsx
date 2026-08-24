@@ -3,7 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
-import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig } from '@/remotion/types';
+import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp } from '@/remotion/types';
+import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
 
 interface SubtitleStudioModalProps {
   clipId: string;
@@ -21,35 +22,35 @@ const PRESET_OPTIONS: Array<{
   icon: string;
   defaultColor: string;
 }> = [
-    {
-      id: 'hormozi',
-      title: 'Hormozi Pop',
-      desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
-      icon: '⚡',
-      defaultColor: '#FFE600',
-    },
-    {
-      id: 'karaoke',
-      title: 'Karaoke Wave',
-      desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
-      icon: '🎤',
-      defaultColor: '#00FFCC',
-    },
-    {
-      id: 'minimalist',
-      title: 'Minimalist Clean',
-      desc: 'Tipografi modern elegan dengan container blur glassmorphism',
-      icon: '✨',
-      defaultColor: '#38bdf8',
-    },
-    {
-      id: 'beast',
-      title: 'Beast Impact',
-      desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
-      icon: '🔥',
-      defaultColor: '#FF3366',
-    },
-  ];
+  {
+    id: 'hormozi',
+    title: 'Hormozi Pop',
+    desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
+    icon: '⚡',
+    defaultColor: '#FFE600',
+  },
+  {
+    id: 'karaoke',
+    title: 'Karaoke Wave',
+    desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
+    icon: '🎤',
+    defaultColor: '#00FFCC',
+  },
+  {
+    id: 'minimalist',
+    title: 'Minimalist Clean',
+    desc: 'Tipografi modern elegan dengan container blur glassmorphism',
+    icon: '✨',
+    defaultColor: '#38bdf8',
+  },
+  {
+    id: 'beast',
+    title: 'Beast Impact',
+    desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
+    icon: '🔥',
+    defaultColor: '#FF3366',
+  },
+];
 
 const COLOR_PALETTE = [
   { label: 'Neon Yellow', hex: '#FFE600' },
@@ -70,6 +71,7 @@ export function SubtitleStudioModal({
   onExportStarted,
 }: SubtitleStudioModalProps) {
   const [mounted, setMounted] = useState(false);
+  const [rawWords, setRawWords] = useState<WordTimestamp[]>([]);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [loadingCues, setLoadingCues] = useState(true);
   const [cuesError, setCuesError] = useState<string | null>(null);
@@ -94,25 +96,33 @@ export function SubtitleStudioModal({
     setMounted(true);
   }, []);
 
-  // Fetch word-level cues from API (runs local Whisper if not cached)
-  const fetchCues = useCallback(async (wordsCount: number) => {
+  // Fetch word-level cues from API on initial modal open
+  const fetchCues = useCallback(async () => {
     setLoadingCues(true);
     setCuesError(null);
     try {
-      const res = await fetch(
-        `/api/clips/${clipId}/subtitle?format=cues&wordsPerPage=${wordsCount}`
-      );
+      const res = await fetch(`/api/clips/${clipId}/subtitle?format=cues`);
       const data = await res.json();
       if (data.success && Array.isArray(data.cues)) {
-        setCues(data.cues);
+        const extractedWords: WordTimestamp[] = data.cues.flatMap((c: any) => c.words || []);
+        setRawWords(extractedWords);
+
+        let initialPageSize = 3;
         if (data.styleConfig) {
           setConfig((prev) => ({
             ...prev,
             ...data.styleConfig,
           }));
           if (data.styleConfig.wordsPerPage) {
-            setWordsPerPage(data.styleConfig.wordsPerPage);
+            initialPageSize = data.styleConfig.wordsPerPage;
+            setWordsPerPage(initialPageSize);
           }
+        }
+
+        if (extractedWords.length > 0) {
+          setCues(groupWordsIntoCues(extractedWords, initialPageSize, durationSeconds));
+        } else {
+          setCues(data.cues);
         }
       } else {
         setCuesError(data.error || 'Gagal memuat transkrip klip.');
@@ -122,11 +132,28 @@ export function SubtitleStudioModal({
     } finally {
       setLoadingCues(false);
     }
-  }, [clipId]);
+  }, [clipId, durationSeconds]);
 
   useEffect(() => {
-    fetchCues(wordsPerPage);
-  }, [fetchCues, wordsPerPage]);
+    fetchCues();
+  }, [fetchCues]);
+
+  // Instant client-side words-per-page regrouping without network reload
+  const handleWordsPerPageChange = (newCount: number) => {
+    setWordsPerPage(newCount);
+    setConfig((prev) => ({ ...prev, wordsPerPage: newCount }));
+
+    if (rawWords.length > 0) {
+      const newCues = groupWordsIntoCues(rawWords, newCount, durationSeconds);
+      setCues(newCues);
+    } else if (cues.length > 0) {
+      const fallbackWords = cues.flatMap((c) => c.words || []);
+      if (fallbackWords.length > 0) {
+        setRawWords(fallbackWords);
+        setCues(groupWordsIntoCues(fallbackWords, newCount, durationSeconds));
+      }
+    }
+  };
 
   const handlePresetSelect = (preset: SubtitlePreset) => {
     const found = PRESET_OPTIONS.find((p) => p.id === preset);
@@ -497,7 +524,7 @@ export function SubtitleStudioModal({
                     <button
                       key={count}
                       type="button"
-                      onClick={() => setWordsPerPage(count)}
+                      onClick={() => handleWordsPerPageChange(count)}
                       style={{
                         flex: 1,
                         padding: '5px 0',
@@ -508,6 +535,7 @@ export function SubtitleStudioModal({
                         fontWeight: 700,
                         fontSize: '0.76rem',
                         cursor: 'pointer',
+                        transition: 'all 0.15s ease',
                       }}
                     >
                       {count}

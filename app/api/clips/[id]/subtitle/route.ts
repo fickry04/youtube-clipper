@@ -10,7 +10,7 @@ import { requireSession } from '@/lib/auth/session';
 import { db } from '@/lib/prisma';
 import { getStorage, StorageKeys, LocalStorageService } from '@/lib/storage';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
-import { cuesToSrt, generateWordLevelCues } from '@/lib/transcript/word-timestamps';
+import { cuesToSrt, generateWordLevelCues, groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
 import { transcribeClipLocally } from '@/lib/whisper';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
 
@@ -74,6 +74,12 @@ export async function GET(
     }
 
     let cues = savedCues;
+    if (savedCues && savedCues.length > 0) {
+      const allWords = savedCues.flatMap((c: any) => c.words || []);
+      if (allWords.length > 0) {
+        cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
+      }
+    }
 
     // 2. If no saved cues exist yet, try running local Whisper on the clip file
     if (!cues || cues.length === 0) {
