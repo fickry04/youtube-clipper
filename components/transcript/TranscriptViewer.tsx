@@ -3,7 +3,6 @@
 import { useRef, useState, useCallback, useEffect } from 'react';
 import type { TranscriptSegment } from '@/lib/types';
 import { formatTimestamp } from '@/lib/utils';
-import styles from './TranscriptViewer.module.css';
 
 interface TranscriptViewerProps {
   videoId: string;
@@ -140,10 +139,10 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
     : 0;
 
   return (
-    <div className={styles.container}>
+    <div className="transcript-viewer-container">
       {/* Left: Video player */}
-      <div className={styles.videoPanel}>
-        <div className={styles.videoWrapper}>
+      <div className="transcript-viewer-video-panel">
+        <div className="transcript-viewer-video-wrapper">
           <iframe
             ref={iframeRef}
             id={`yt-player-${videoId}`}
@@ -151,43 +150,43 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
             title="YouTube video player"
             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
             allowFullScreen
-            className={styles.iframe}
+            className="transcript-viewer-iframe"
           />
         </div>
 
         {/* Video stats */}
-        <div className={styles.videoMeta}>
-          <div className={styles.stat}>
+        <div className="transcript-viewer-video-meta">
+          <div className="transcript-viewer-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polyline points="22 12 18 12 15 21 9 3 6 12 2 12" />
             </svg>
             <span>{segments.length} segments</span>
           </div>
-          <div className={styles.stat}>
+          <div className="transcript-viewer-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
             </svg>
             <span>{formatTimestamp(totalDuration)}</span>
           </div>
-          <div className={`${styles.stat} ${styles.langStat}`}>
+          <div className="transcript-viewer-stat transcript-viewer-lang-stat">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" />
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
             </svg>
-            <span className={styles.langCode}>{languageCode.toUpperCase()}</span>
+            <span className="transcript-viewer-lang-code">{languageCode.toUpperCase()}</span>
           </div>
           {!isPlayerReady && (
-            <div className={styles.stat}>
-              <span className={styles.loadingIndicator}>Loading player...</span>
+            <div className="transcript-viewer-stat">
+              <span className="transcript-viewer-loading-indicator">Loading player...</span>
             </div>
           )}
         </div>
       </div>
 
       {/* Right: Transcript panel */}
-      <div className={styles.transcriptPanel}>
-        <div className={styles.transcriptHeader}>
-          <div className={styles.transcriptTitle}>
+      <div className="transcript-viewer-panel">
+        <div className="transcript-viewer-header">
+          <div className="transcript-viewer-title">
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
               <polyline points="14 2 14 8 20 8" /><line x1="16" y1="13" x2="8" y2="13" />
@@ -195,10 +194,10 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
             </svg>
             <span>Transcript</span>
           </div>
-          <div className={styles.transcriptActions}>
+          <div className="transcript-viewer-actions">
             <button
               id="copy-transcript-btn"
-              className={styles.actionBtn}
+              className="transcript-viewer-action-btn"
               onClick={copyTranscript}
               title="Copy transcript"
               aria-label={isCopied ? 'Copied!' : 'Copy transcript'}
@@ -216,7 +215,7 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
             </button>
             <button
               id="download-transcript-btn"
-              className={styles.actionBtn}
+              className="transcript-viewer-action-btn"
               onClick={downloadTranscript}
               title="Download as .txt"
               aria-label="Download transcript"
@@ -231,13 +230,13 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
         </div>
 
         {/* Search */}
-        <div className={styles.searchWrapper}>
-          <svg className={styles.searchIcon} width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <div className="transcript-viewer-search-wrapper">
+          <svg className="transcript-viewer-search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
             <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
           </svg>
           <input
             id="transcript-search-input"
-            className={styles.searchInput}
+            className="transcript-viewer-search-input"
             type="text"
             placeholder="Search transcript..."
             value={searchQuery}
@@ -245,16 +244,16 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
             aria-label="Search transcript"
           />
           {searchQuery && (
-            <span className={styles.searchCount}>
+            <span className="transcript-viewer-search-count">
               {filteredSegments.length} result{filteredSegments.length !== 1 ? 's' : ''}
             </span>
           )}
         </div>
 
         {/* Segments list */}
-        <div className={styles.segmentsList} ref={transcriptRef} role="list" aria-label="Transcript segments">
+        <div className="transcript-viewer-segments-list" ref={transcriptRef} role="list" aria-label="Transcript segments">
           {filteredSegments.length === 0 ? (
-            <div className={styles.emptySearch}>
+            <div className="transcript-viewer-empty-search">
               <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
               </svg>
@@ -272,13 +271,13 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
                   key={`${segment.offset}-${i}`}
                   ref={isActive ? activeRowRef : undefined}
                   role="listitem"
-                  className={`${styles.segment} ${isActive ? styles.activeSegment : ''}`}
+                  className={`transcript-viewer-segment ${isActive ? 'transcript-viewer-segment-active' : ''}`}
                   onClick={() => seekTo(segment.offset)}
                   aria-label={`Jump to ${formatTimestamp(segment.offset)}: ${segment.text}`}
                   id={`segment-${originalIndex}`}
                 >
-                  <span className={styles.timestamp}>{formatTimestamp(segment.offset)}</span>
-                  <span className={styles.segmentText}>
+                  <span className="transcript-viewer-timestamp">{formatTimestamp(segment.offset)}</span>
+                  <span className="transcript-viewer-segment-text">
                     {searchQuery ? highlightText(segment.text, searchQuery) : segment.text}
                   </span>
                 </button>

@@ -20,6 +20,8 @@
     "@remotion/bundler": "^4.0.516",
     "@remotion/player": "^4.0.516",
     "@remotion/renderer": "^4.0.516",
+    "@tensorflow/tfjs": "^4.22.0",
+    "@tensorflow/tfjs-backend-wasm": "^4.22.0",
     "@vladmandic/face-api": "^1.7.15",
     "better-auth": "^1.7.1",
     "bullmq": "^6.1.2",

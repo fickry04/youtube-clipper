@@ -1,44 +1,43 @@
 import Image from 'next/image';
 import Link from 'next/link';
-import styles from './page.module.css';
 
 export default function HomePage() {
   return (
-    <main className={styles.main}>
+    <main className="landing-main">
       {/* Background effects */}
-      <div className={styles.bgOrb1} aria-hidden="true" />
-      <div className={styles.bgOrb2} aria-hidden="true" />
-      <div className={styles.bgOrb3} aria-hidden="true" />
-      <div className={styles.bgGrid} aria-hidden="true" />
+      <div className="landing-bg-orb1" aria-hidden="true" />
+      <div className="landing-bg-orb2" aria-hidden="true" />
+      <div className="landing-bg-orb3" aria-hidden="true" />
+      <div className="landing-bg-grid" aria-hidden="true" />
 
       {/* ── Navigation ── */}
-      <nav className={styles.nav}>
-        <div className={styles.navInner}>
+      <nav className="landing-nav">
+        <div className="landing-nav-inner">
           {/* Logo */}
-          <Link href="/" className={styles.navLogo} aria-label="YouTube video Clipper home">
+          <Link href="/" className="landing-nav-logo" aria-label="YouTube video Clipper home">
             <Image
               src="/logo.png"
               alt="YouTube Clipper Logo"
               width={60}
               height={40}
-              className={styles.logoImage}
+              className="landing-logo-image"
               priority
             />
-            <span className={styles.navLogoText}>Youtube Clipper</span>
+            <span className="landing-nav-logo-text">Youtube Clipper</span>
           </Link>
 
           {/* Nav links */}
-          <div className={styles.navLinks}>
-            <Link href="#features" className={styles.navLink}>Features</Link>
-            <Link href="#how-it-works" className={styles.navLink}>How it works</Link>
+          <div className="landing-nav-links">
+            <Link href="#features" className="landing-nav-link">Features</Link>
+            <Link href="#how-it-works" className="landing-nav-link">How it works</Link>
           </div>
 
           {/* Auth buttons */}
-          <div className={styles.navActions}>
-            <Link href="/login" id="nav-login-btn" className={styles.btnGhost}>
+          <div className="landing-nav-actions">
+            <Link href="/login" id="nav-login-btn" className="landing-btn-ghost">
               Log in
             </Link>
-            <Link href="/register" id="nav-register-btn" className={styles.btnPrimary}>
+            <Link href="/register" id="nav-register-btn" className="landing-btn-primary">
               Get started
             </Link>
           </div>
@@ -46,59 +45,59 @@ export default function HomePage() {
       </nav>
 
       {/* ── Hero ── */}
-      <section className={styles.hero} aria-label="Hero">
-        <div className={styles.heroBadge}>
-          <span className={styles.heroBadgeDot} aria-hidden="true" />
+      <section className="landing-hero" aria-label="Hero">
+        <div className="landing-hero-badge">
+          <span className="landing-hero-badge-dot" aria-hidden="true" />
           AI-Powered Video Clip Analysis
         </div>
 
-        <h1 className={styles.heroTitle}>
+        <h1 className="landing-hero-title">
           Turn any YouTube video into{' '}
-          <span className={styles.heroTitleGradient}>video clips</span>
+          <span className="landing-hero-title-gradient">video clips</span>
         </h1>
 
-        <p className={styles.heroSubtitle}>
+        <p className="landing-hero-subtitle">
           Paste a YouTube link, pick your language, and let AI identify the moments
           your audience will watch — and share — over and over again.
         </p>
 
-        <div className={styles.heroCta}>
-          <Link href="/register" id="hero-cta-primary" className={styles.ctaPrimary}>
+        <div className="landing-hero-cta">
+          <Link href="/register" id="hero-cta-primary" className="landing-cta-primary">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
             Start clipping for free
           </Link>
-          <Link href="/login" id="hero-cta-secondary" className={styles.ctaSecondary}>
+          <Link href="/login" id="hero-cta-secondary" className="landing-cta-secondary">
             Already have an account? Log in
           </Link>
         </div>
 
         {/* Stat pills */}
-        <div className={styles.heroStats}>
+        <div className="landing-hero-stats">
           {[
             { value: 'Fast', label: 'analysis' },
             { value: 'Multi-language', label: 'support' },
             { value: '100%', label: 'free' },
           ].map((s) => (
-            <div key={s.label} className={styles.statPill}>
-              <span className={styles.statValue}>{s.value}</span>
-              <span className={styles.statLabel}>{s.label}</span>
+            <div key={s.label} className="landing-stat-pill">
+              <span className="landing-stat-value">{s.value}</span>
+              <span className="landing-stat-label">{s.label}</span>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── Features ── */}
-      <section id="features" className={styles.section} aria-label="Features">
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Everything you need to go viral</h2>
-          <p className={styles.sectionSubtitle}>
+      <section id="features" className="landing-section" aria-label="Features">
+        <div className="landing-section-header">
+          <h2 className="landing-section-title">Everything you need to go viral</h2>
+          <p className="landing-section-subtitle">
             From raw transcript to ranked clip suggestions in seconds
           </p>
         </div>
 
-        <div className={styles.featureGrid}>
+        <div className="landing-feature-grid">
           {[
             {
               icon: (
@@ -167,25 +166,25 @@ export default function HomePage() {
               color: 'blue',
             },
           ].map((f) => (
-            <div key={f.title} className={`${styles.featureCard} ${styles[`featureCard--${f.color}`]}`}>
-              <div className={`${styles.featureIcon} ${styles[`featureIcon--${f.color}`]}`}>
+            <div key={f.title} className={`landing-feature-card landing-feature-card--${f.color}`}>
+              <div className={`landing-feature-icon landing-feature-icon--${f.color}`}>
                 {f.icon}
               </div>
-              <h3 className={styles.featureTitle}>{f.title}</h3>
-              <p className={styles.featureDesc}>{f.desc}</p>
+              <h3 className="landing-feature-title">{f.title}</h3>
+              <p className="landing-feature-desc">{f.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── How it works ── */}
-      <section id="how-it-works" className={styles.section} aria-label="How it works">
-        <div className={styles.sectionHeader}>
-          <h2 className={styles.sectionTitle}>Three steps to your next viral clip</h2>
-          <p className={styles.sectionSubtitle}>No editing skills required</p>
+      <section id="how-it-works" className="landing-section" aria-label="How it works">
+        <div className="landing-section-header">
+          <h2 className="landing-section-title">Three steps to your next viral clip</h2>
+          <p className="landing-section-subtitle">No editing skills required</p>
         </div>
 
-        <div className={styles.stepsRow}>
+        <div className="landing-steps-row">
           {[
             {
               step: '01',
@@ -202,29 +201,28 @@ export default function HomePage() {
               title: 'Get your clip list',
               desc: 'AI analyses the transcript and returns a ranked list of viral-ready moments.',
             },
-          ].map((s, i) => (
-            <div key={s.step} className={styles.stepCard}>
-              <div className={styles.stepNumber}>{s.step}</div>
-              {i < 2 && <div className={styles.stepConnector} aria-hidden="true" />}
-              <h3 className={styles.stepTitle}>{s.title}</h3>
-              <p className={styles.stepDesc}>{s.desc}</p>
+          ].map((s) => (
+            <div key={s.step} className="landing-step-card">
+              <div className="landing-step-number">{s.step}</div>
+              <h3 className="landing-step-title">{s.title}</h3>
+              <p className="landing-step-desc">{s.desc}</p>
             </div>
           ))}
         </div>
       </section>
 
       {/* ── CTA banner ── */}
-      <section className={styles.ctaBanner} aria-label="Call to action">
-        <div className={styles.ctaBannerInner}>
-          <h2 className={styles.ctaBannerTitle}>Ready to find your next video clip moments?</h2>
-          <p className={styles.ctaBannerSubtitle}>
+      <section className="landing-cta-banner" aria-label="Call to action">
+        <div className="landing-cta-banner-inner">
+          <h2 className="landing-cta-banner-title">Ready to find your next video clip moments?</h2>
+          <p className="landing-cta-banner-subtitle">
             Join creators who are already shipping better content, faster.
           </p>
-          <div className={styles.ctaBannerActions}>
-            <Link href="/register" id="banner-cta-primary" className={styles.ctaPrimary}>
+          <div className="landing-cta-banner-actions">
+            <Link href="/register" id="banner-cta-primary" className="landing-cta-primary">
               Create free account
             </Link>
-            <Link href="/login" id="banner-cta-login" className={styles.ctaSecondary}>
+            <Link href="/login" id="banner-cta-login" className="landing-cta-secondary">
               Log in
             </Link>
           </div>
@@ -232,19 +230,19 @@ export default function HomePage() {
       </section>
 
       {/* ── Footer ── */}
-      <footer className={styles.footer}>
-        <div className={styles.footerInner}>
-          <div className={styles.footerLogo}>
+      <footer className="landing-footer">
+        <div className="landing-footer-inner">
+          <div className="landing-footer-logo">
             <Image
               src="/logo.png"
               alt="YouTube Clipper Logo"
               width={22}
               height={22}
-              className={styles.logoImage}
+              className="landing-logo-image"
             />
-            <span className={styles.footerLogoText}>Youtube Clipper</span>
+            <span className="landing-footer-logo-text">Youtube Clipper</span>
           </div>
-          <p className={styles.footerCopy}>© {new Date().getFullYear()} YouTube Video Clipper. All rights reserved.</p>
+          <p className="landing-footer-copy">© {new Date().getFullYear()} YouTube Video Clipper. All rights reserved.</p>
         </div>
       </footer>
     </main>
