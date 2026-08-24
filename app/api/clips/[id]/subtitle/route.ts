@@ -100,6 +100,7 @@ export async function GET(
           mediaPath,
           clipDurationSeconds: clip.durationSeconds,
           wordsPerPage,
+          contextHint: `${clip.title} — ${clip.summary}`,
           fallbackSegments: rawSegments,
           clipStartSeconds: clip.startSeconds,
         });

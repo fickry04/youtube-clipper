@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { createPortal } from 'react-dom';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
 import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig } from '@/remotion/types';
@@ -21,35 +21,35 @@ const PRESET_OPTIONS: Array<{
   icon: string;
   defaultColor: string;
 }> = [
-  {
-    id: 'hormozi',
-    title: 'Hormozi Pop',
-    desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
-    icon: '⚡',
-    defaultColor: '#FFE600',
-  },
-  {
-    id: 'karaoke',
-    title: 'Karaoke Wave',
-    desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
-    icon: '🎤',
-    defaultColor: '#00FFCC',
-  },
-  {
-    id: 'minimalist',
-    title: 'Minimalist Clean',
-    desc: 'Tipografi modern elegan dengan container blur glassmorphism',
-    icon: '✨',
-    defaultColor: '#38bdf8',
-  },
-  {
-    id: 'beast',
-    title: 'Beast Impact',
-    desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
-    icon: '🔥',
-    defaultColor: '#FF3366',
-  },
-];
+    {
+      id: 'hormozi',
+      title: 'Hormozi Pop',
+      desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
+      icon: '⚡',
+      defaultColor: '#FFE600',
+    },
+    {
+      id: 'karaoke',
+      title: 'Karaoke Wave',
+      desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
+      icon: '🎤',
+      defaultColor: '#00FFCC',
+    },
+    {
+      id: 'minimalist',
+      title: 'Minimalist Clean',
+      desc: 'Tipografi modern elegan dengan container blur glassmorphism',
+      icon: '✨',
+      defaultColor: '#38bdf8',
+    },
+    {
+      id: 'beast',
+      title: 'Beast Impact',
+      desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
+      icon: '🔥',
+      defaultColor: '#FF3366',
+    },
+  ];
 
 const COLOR_PALETTE = [
   { label: 'Neon Yellow', hex: '#FFE600' },
@@ -345,9 +345,6 @@ export function SubtitleStudioModal({
                 />
               )}
             </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '0.74rem', color: '#10b981', fontWeight: 600 }}>
-              <span>✓ Local Whisper Word Timestamps ({cues.length} Cues)</span>
-            </div>
           </div>
 
           {/* Right Column: Customization Controls with Internal Scroll */}
@@ -626,7 +623,7 @@ export function SubtitleStudioModal({
             {isExporting ? (
               <>
                 <span className="auth-spinner" style={{ width: '14px', height: '14px' }} />
-                <span>Memulai Render Remotion…</span>
+                <span>Memproses Subtitle dengan Whisper AI…</span>
               </>
             ) : (
               <>
@@ -635,7 +632,7 @@ export function SubtitleStudioModal({
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span>Export Subtitled Video 9:16 (Remotion HD)</span>
+                <span>✨ Proses Subtitle dengan Whisper AI</span>
               </>
             )}
           </button>

@@ -87,13 +87,14 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
 
         await setSubtitleProgress(jobId, job, 25);
 
-        // 3. Local Whisper Word-Level Timestamps Extraction
-        console.log(`[Subtitle Worker] Running local Whisper for clip ${clipId}...`);
+        // 3. Local Whisper Word-Level Timestamps Extraction & Gemini Refinement
+        console.log(`[Subtitle Worker] Running local Whisper & Gemini cleanup for clip ${clipId}...`);
         const wordsPerPage = styleConfig?.wordsPerPage || 3;
         const cues = await transcribeClipLocally({
             mediaPath: verticalPath,
             clipDurationSeconds: clip.durationSeconds,
             wordsPerPage,
+            contextHint: `${clip.title} — ${clip.summary}`,
             fallbackSegments: segments,
             clipStartSeconds: clip.startSeconds,
         });

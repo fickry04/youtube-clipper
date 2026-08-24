@@ -78,7 +78,7 @@ export function GenerateSubtitleButton({
               <path d="M7 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H7" />
               <path d="M15 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
             </svg>
-            <span>{!hasVertical ? 'Subtitle Studio (Perlu Crop 9:16)' : '✨ Remotion Subtitle Studio'}</span>
+            <span>{!hasVertical ? 'Subtitle Studio (Perlu Crop 9:16)' : '✨ Proses Subtitle (Whisper AI)'}</span>
           </button>
         )}
       </div>

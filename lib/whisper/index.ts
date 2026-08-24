@@ -4,19 +4,21 @@ import { existsSync } from 'fs';
 import { nodewhisper } from 'nodejs-whisper';
 import type { CaptionCue, WordTimestamp } from '../../remotion/types';
 import { generateWordLevelCues } from '../transcript/word-timestamps';
+import { refineTranscriptWithGemini } from '../transcript/gemini-refiner';
 
 export interface TranscribeClipOptions {
   mediaPath: string; // Absolute path to clip mp4 or wav
   clipDurationSeconds?: number;
   wordsPerPage?: number;
   language?: string;
+  contextHint?: string;
   fallbackSegments?: Array<{ offset: number; duration: number; text: string }>;
   clipStartSeconds?: number;
 }
 
 /**
  * Transcribe a video clip locally using nodejs-whisper (whisper.cpp)
- * to get exact millisecond-level word timestamps.
+ * to get exact millisecond-level word timestamps, then refine with Gemini AI.
  */
 export async function transcribeClipLocally(
   opts: TranscribeClipOptions
@@ -32,7 +34,7 @@ export async function transcribeClipLocally(
       'node_modules/nodejs-whisper/cpp/whisper.cpp/models'
     );
 
-    // Call nodejs-whisper with explicit modelRootPath to avoid permission issues
+    // Call nodejs-whisper with explicit modelRootPath
     await nodewhisper(opts.mediaPath, {
       modelName: 'base',
       modelRootPath,
@@ -77,13 +79,13 @@ export async function transcribeClipLocally(
       // Clean up temporary json file
       await fs.unlink(jsonPath).catch(() => {});
 
-      const words: WordTimestamp[] = [];
+      const rawWords: WordTimestamp[] = [];
       const transcription = rawData.transcription || rawData.result || [];
 
       for (const item of transcription) {
         const wordText = (item.text || '').trim();
-        // Ignore empty, dashes or special whisper tokens like [_BEG_]
-        if (!wordText || wordText === '-' || wordText.startsWith('[_') || wordText.startsWith('(')) {
+        // Ignore empty, dashes or raw whisper markers
+        if (!wordText || wordText === '-' || wordText.startsWith('[_')) {
           continue;
         }
 
@@ -99,7 +101,7 @@ export async function transcribeClipLocally(
           endSec = parseWhisperTimestamp(item.timestamps?.to);
         }
 
-        words.push({
+        rawWords.push({
           word: wordText,
           start: Number(Math.max(0, Math.min(clipDuration, startSec)).toFixed(3)),
           end: Number(Math.max(startSec + 0.05, Math.min(clipDuration, endSec)).toFixed(3)),
@@ -107,9 +109,11 @@ export async function transcribeClipLocally(
         });
       }
 
-      if (words.length > 0) {
-        console.log(`[Local Whisper] Successfully extracted ${words.length} words with exact timestamps.`);
-        return groupWordsIntoCues(words, wordsPerPage, clipDuration);
+      if (rawWords.length > 0) {
+        console.log(`[Local Whisper] Raw extracted: ${rawWords.length} words. Running Gemini cleaner & refiner...`);
+        const refinedWords = await refineTranscriptWithGemini(rawWords, opts.contextHint);
+        console.log(`[Local Whisper] Refined to ${refinedWords.length} cleaned words.`);
+        return groupWordsIntoCues(refinedWords, wordsPerPage, clipDuration);
       }
     }
   } catch (err) {
@@ -119,12 +123,13 @@ export async function transcribeClipLocally(
   // Graceful fallback to phonetic transcript aligner
   console.log('[Local Whisper] Using phonetic transcript fallback for cues.');
   if (opts.fallbackSegments && typeof opts.clipStartSeconds === 'number') {
-    return generateWordLevelCues(
+    const fallbackCues = generateWordLevelCues(
       opts.fallbackSegments,
       opts.clipStartSeconds,
       clipDuration,
       wordsPerPage
     );
+    return fallbackCues;
   }
 
   return [];
