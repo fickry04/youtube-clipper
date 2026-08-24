@@ -47,8 +47,8 @@ export async function refineTranscriptWithGemini(
 Tugas Anda:
 1. Perbaiki transkrip hasil Speech-to-Text (Whisper) berikut ini agar masuk akal, alami, dan bebas dari salah dengar/typo tanpa mengubah makna aslinya.
 2. Hapus suara non-vokal/noise seperti [LAUGHS], [MUSIC], [APPLAUSE], [Randov laughs], tanda strip '-', tawa, atau teks dalam kurung jika masih tersisa.
-3. Pertahankan urutan dan jumlah segmen waktu kata sebisa mungkin, sesuaikan teks kata dengan kata hasil perbaikan yang paling pas.
-4. Perbaiki kata-kata yang membingungkan konteks kalimat secara utuh.
+3. Pertahankan urutan dan jumlah segmen waktu kata sebisa mungkin, sesuaikan teks kata dengan kata hasil perbaikan yang paling pas. Pastikan waktu start dan end kata tetap dipertahankan sesuai data aslinya.
+4. Jika terdapat kata-kata yang membingungkan konteks kalimat secara utuh, hapus saja kata tersebut dan kosongkan transkrip di waktu tersebut.
 
 Konteks Klip: ${contextHint || 'Percakapan video YouTube short-form'}
 Teks Asli: "${fullSentence}"

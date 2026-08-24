@@ -6,6 +6,7 @@ import { VideoTranscriptSection } from './VideoTranscriptSection';
 import { AnalyzeTrigger } from './AnalyzeTrigger';
 import { GenerateSubtitleButton } from './GenerateSubtitleButton';
 import { CropFaceButton } from './CropFaceButton';
+import { ExpandedPhoneModal } from './ExpandedPhoneModal';
 
 interface JobInfo {
   id: string;
@@ -83,6 +84,7 @@ export function VideoDetailManager({
   const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
   const [videoViews, setVideoViews] = useState<Record<string, 'original' | 'vertical'>>({});
   const [subtitleViews, setSubtitleViews] = useState<Record<string, boolean>>({});
+  const [expandedPreviewClip, setExpandedPreviewClip] = useState<ClipInfo | null>(null);
   const [error, setError] = useState('');
   const [dismissedToastIds, setDismissedToastIds] = useState<Record<string, boolean>>({});
   const [closingToastIds, setClosingToastIds] = useState<Record<string, boolean>>({});
@@ -222,6 +224,17 @@ export function VideoDetailManager({
     (c) => c.processingStatus === 'COMPLETED' && c.asset
   ).length ?? 0;
   const clipsCutCompleted = totalClips > 0 && completedClipsCount === totalClips;
+
+  const handleOpenExpandedPreview = useCallback((clip: ClipInfo) => {
+    if (typeof document !== 'undefined') {
+      document.querySelectorAll('video').forEach((v) => {
+        try {
+          (v as HTMLVideoElement).pause();
+        } catch (_) {}
+      });
+    }
+    setExpandedPreviewClip(clip);
+  }, []);
 
   return (
     <div className="video-detail-manager">
@@ -545,16 +558,18 @@ export function VideoDetailManager({
 
                 <span className="sticky-toast-title">
                   {subtitleJob.status === 'COMPLETED'
-                    ? 'Subtitles Generated & Burned!'
+                    ? 'Remotion Subtitles Generated!'
                     : subtitleJob.status === 'FAILED'
                       ? 'Subtitle Generation Failed'
                       : subtitleJob.status === 'QUEUED'
                         ? 'Queued in Subtitle Worker…'
-                        : (subtitleJob.progress || 0) < 40
-                          ? 'Generating SRT Cues from Transcript…'
-                          : (subtitleJob.progress || 0) < 80
-                            ? 'Burning Subtitles into Video (FFmpeg)…'
-                            : 'Saving Subtitled Video Assets…'}
+                        : (subtitleJob.progress || 0) < 25
+                          ? 'Checking 9:16 Video & Data…'
+                          : (subtitleJob.progress || 0) < 45
+                            ? 'Extracting Word Timestamps (Whisper AI)…'
+                            : (subtitleJob.progress || 0) < 93
+                              ? 'Rendering Subtitled Video (Remotion)…'
+                              : 'Saving Subtitled Video Assets…'}
                 </span>
               </div>
 
@@ -575,14 +590,16 @@ export function VideoDetailManager({
               <div className="sticky-toast-info">
                 <span className="sticky-toast-status-text">
                   {subtitleJob.status === 'COMPLETED'
-                    ? 'Subtitles created and burned into preview video successfully.'
+                    ? '9:16 vertical video with Remotion animated captions rendered successfully.'
                     : subtitleJob.status === 'FAILED'
                       ? (subtitleJob.error || 'Failed to generate subtitle')
-                      : (subtitleJob.progress || 0) < 40
-                        ? 'Aligning word timestamps with clip duration…'
-                        : (subtitleJob.progress || 0) < 80
-                          ? 'Re-encoding video with burned captions overlay…'
-                          : 'Finalizing subtitle stream and asset storage…'}
+                      : (subtitleJob.progress || 0) < 25
+                        ? 'Verifying 9:16 vertical video and loading clip transcript…'
+                        : (subtitleJob.progress || 0) < 45
+                          ? 'Extracting word-level timestamps with Whisper & Gemini AI…'
+                          : (subtitleJob.progress || 0) < 93
+                            ? 'Rendering Remotion animated captions composition…'
+                            : 'Saving Remotion subtitled video, SRT, and JSON cues…'}
                 </span>
                 <span className="sticky-toast-pct" style={{ color: '#4ade80' }}>
                   {subtitleJob.status === 'COMPLETED' ? '100%' : `${subtitleJob.progress || 0}%`}
@@ -694,42 +711,46 @@ export function VideoDetailManager({
                       >
                         {/* Left Column: Video Mockup / Action */}
                         <div className="clip-card-left">
-                          <div className={`clip-video-mockup ${isVerticalView ? 'mode-9-16' : 'mode-16-9'}`}>
-                            {isCompleted && (
-                              <div className="clip-mockup-top-badges">
-                                <span className="clip-preview-ratio-badge">
-                                  {isVerticalView ? '📱 9:16 Shorts' : '🖥️ 16:9 Original'}
-                                </span>
-                                {isVerticalView && hasSubtitles && (
-                                  <button
-                                    type="button"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      setSubtitleViews((prev) => ({ ...prev, [clip.id]: !isSubOn }));
-                                    }}
-                                    className={`clip-subtitle-toggle-pill ${isSubOn ? 'sub-on' : 'sub-off'}`}
-                                    title={isSubOn ? 'Matikan subtitle 9:16 (tampilkan video bersih)' : 'Nyalakan subtitle 9:16 (tampilkan burned moving pill)'}
-                                  >
-                                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                      <rect width="20" height="16" x="2" y="4" rx="2" />
-                                      <path d="M7 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H7" />
-                                      <path d="M15 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
-                                    </svg>
-                                    <span>{isSubOn ? 'CC ON' : 'CC OFF'}</span>
-                                  </button>
-                                )}
-                              </div>
-                            )}
+                          <div
+                            className={`clip-video-mockup ${isVerticalView ? 'mode-9-16' : 'mode-16-9'} ${isCompleted ? 'is-clickable' : ''}`}
+                            onClick={() => {
+                              if (isCompleted) {
+                                handleOpenExpandedPreview(clip);
+                              }
+                            }}
+                            title={isCompleted ? "Klik untuk memutar & melihat preview di mode besar" : undefined}
+                            role={isCompleted ? "button" : undefined}
+                            tabIndex={isCompleted ? 0 : undefined}
+                            onKeyDown={(e) => {
+                              if (isCompleted && (e.key === 'Enter' || e.key === ' ')) {
+                                e.preventDefault();
+                                handleOpenExpandedPreview(clip);
+                              }
+                            }}
+                          >
                             <div className="clip-video-area-inner">
                               {isCompleted ? (
-                                <video
-                                  key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}-${isVerticalView && isSubOn && hasSubtitles ? 'sub' : 'clean'}`}
-                                  controls
-                                  className="clip-video-player"
-                                  src={currentVideoSrc}
-                                  preload="metadata"
-                                  aria-label={`Clip ${clip.rank}: ${clip.title}`}
-                                />
+                                <>
+                                  <video
+                                    key={`${clip.id}-${isVerticalView ? 'vert' : 'orig'}-${isVerticalView && isSubOn && hasSubtitles ? 'sub' : 'clean'}`}
+                                    className="clip-video-player"
+                                    src={currentVideoSrc}
+                                    preload="metadata"
+                                    muted
+                                    playsInline
+                                    aria-label={`Thumbnail Clip ${clip.rank}: ${clip.title}`}
+                                  />
+                                  <div className="clip-thumbnail-play-overlay">
+                                    <div className="clip-thumbnail-play-circle">
+                                      <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor">
+                                        <polygon points="6 3 20 12 6 21 6 3" />
+                                      </svg>
+                                    </div>
+                                    <span className="clip-thumbnail-badge">
+                                      {isVerticalView ? '📱 9:16 Shorts' : '🖥️ 16:9'}
+                                    </span>
+                                  </div>
+                                </>
                               ) : isProcessing ? (
                                 <div className="clip-video-processing">
                                   <span className="auth-spinner" aria-hidden="true" />
@@ -996,6 +1017,22 @@ export function VideoDetailManager({
           </section>
         </div>
       </div>
+
+      {/* Expanded Smartphone Preview Center Modal */}
+      {expandedPreviewClip && (
+        <ExpandedPhoneModal
+          clip={expandedPreviewClip}
+          initialViewMode={videoViews[expandedPreviewClip.id] || (expandedPreviewClip.hasVertical ? 'vertical' : 'original')}
+          initialSubOn={subtitleViews[expandedPreviewClip.id] !== undefined ? subtitleViews[expandedPreviewClip.id] : Boolean(expandedPreviewClip.hasVerticalSubtitled)}
+          onClose={() => setExpandedPreviewClip(null)}
+          onViewModeChange={(clipId, mode) => {
+            setVideoViews((prev) => ({ ...prev, [clipId]: mode }));
+          }}
+          onSubChange={(clipId, isSubOn) => {
+            setSubtitleViews((prev) => ({ ...prev, [clipId]: isSubOn }));
+          }}
+        />
+      )}
     </div>
   );
 }
