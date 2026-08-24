@@ -192,7 +192,6 @@ model Clip {
   asset          VideoAsset?
   subtitles      Subtitle[]
   faceDetections FaceDetection[]
-  embedding      Embedding?
 
   @@index([viralAnalysisId])
 }
@@ -227,19 +226,6 @@ model FaceDetection {
   createdAt  DateTime @default(now())
 
   @@index([clipId])
-}
-
-model Embedding {
-  id         String   @id @default(cuid())
-  clipId     String   @unique
-  clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
-  model      String // embedding model name
-  dimensions Int
-  // Stored as JSON string until pgvector is installed
-  // Once pgvector is available, migrate this to Unsupported("vector(768)")
-  vector     String? // JSON array of floats
-  createdAt  DateTime @default(now())
-  updatedAt  DateTime @updatedAt
 }
 
 // =============================================================================

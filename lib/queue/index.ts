@@ -55,7 +55,6 @@ function getQueues(): Record<string, Queue> {
       [QUEUE_NAMES.CLIP]: createQueue(QUEUE_NAMES.CLIP),
       [QUEUE_NAMES.SUBTITLE]: createQueue(QUEUE_NAMES.SUBTITLE),
       [QUEUE_NAMES.FACE_DETECTION]: createQueue(QUEUE_NAMES.FACE_DETECTION),
-      [QUEUE_NAMES.EMBEDDING]: createQueue(QUEUE_NAMES.EMBEDDING),
     };
   }
   return globalForQueues.queues;

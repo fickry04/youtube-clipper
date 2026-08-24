@@ -25,8 +25,7 @@ export const QUEUE_NAMES = {
   CLIP: 'clip',
   SUBTITLE: 'subtitle',
   FACE_DETECTION: 'face-detection',
-  EMBEDDING: 'embedding',
-} as const;
+};
 
 // Payloads for each job type
 

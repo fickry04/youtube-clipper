@@ -40,9 +40,6 @@ export async function GET(
           orderBy: { timestamp: 'asc' },
           take: 50,
         },
-        embedding: {
-          select: { model: true, dimensions: true, createdAt: true },
-        },
       },
     });
 
