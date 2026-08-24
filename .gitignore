@@ -45,3 +45,6 @@ prisma/generated
 
 # storage
 storage/*
+
+# dist
+dist/

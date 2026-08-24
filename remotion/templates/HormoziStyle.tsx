@@ -1,5 +1,5 @@
 import React from 'react';
-import { interpolate, spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { CaptionCue, SubtitleStyleConfig } from '../types';
 
 interface CaptionTemplateProps {
@@ -49,21 +49,21 @@ export const HormoziStyle: React.FC<CaptionTemplateProps> = ({
 
         const scale = isCurrentWord
           ? spring({
-              frame: relativeFrame,
-              fps,
-              config: {
-                damping: 12,
-                mass: 0.5,
-                stiffness: 220,
-              },
-            }) * 0.15 + 1.05
+            frame: relativeFrame,
+            fps,
+            config: {
+              damping: 12,
+              mass: 0.5,
+              stiffness: 220,
+            },
+          }) * 0.15 + 1.05
           : 1.0;
 
         const color = isCurrentWord
           ? highlightColor
           : isPastWord
-          ? textColor
-          : 'rgba(255, 255, 255, 0.7)';
+            ? textColor
+            : 'rgba(255, 255, 255, 0.7)';
 
         const textTransform = config.uppercase !== false ? 'uppercase' : 'none';
 

@@ -1,5 +1,4 @@
 import React from 'react';
-import { interpolate, useCurrentFrame, useVideoConfig } from 'remotion';
 import type { CaptionCue, SubtitleStyleConfig } from '../types';
 
 interface CaptionTemplateProps {
@@ -13,8 +12,6 @@ export const KaraokeStyle: React.FC<CaptionTemplateProps> = ({
   currentTimeSec,
   config,
 }) => {
-  const frame = useCurrentFrame();
-  const { fps } = useVideoConfig();
 
   if (!currentCue || !currentCue.words || currentCue.words.length === 0) {
     return null;
