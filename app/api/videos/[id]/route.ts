@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
-import { db } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getStorage, StorageKeys } from '@/lib/storage';
 
 export async function GET(
@@ -18,7 +18,7 @@ export async function GET(
 
   try {
     // Ownership check: video → project → user
-    const video = await db.video.findFirst({
+    const video = await prisma.video.findFirst({
       where: {
         id,
         project: { userId: session.user.id },
@@ -84,7 +84,7 @@ export async function DELETE(
   const { id } = await params;
 
   // Ownership check + collect all asset storage paths
-  const video = await db.video.findFirst({
+  const video = await prisma.video.findFirst({
     where: {
       id,
       project: { userId: session.user.id },
@@ -117,7 +117,7 @@ export async function DELETE(
     const clips = video.viralAnalysis?.clips ?? [];
 
     // Delete DB record — cascade handles ViralAnalysis, Clips, Transcript, Jobs
-    await db.video.delete({ where: { id } });
+    await prisma.video.delete({ where: { id } });
 
     // Delete physical files and directories (best-effort, errors are non-fatal)
     const storage = getStorage();

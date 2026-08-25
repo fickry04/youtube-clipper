@@ -5,7 +5,7 @@
 
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
-import { db } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import { getStorage, StorageKeys } from '@/lib/storage';
 import type { FaceDetectionPayload } from '@/lib/queue/jobs';
@@ -24,7 +24,7 @@ export async function GET(
   const { id: clipId } = await params;
 
   try {
-    const clip = await db.clip.findFirst({
+    const clip = await prisma.clip.findFirst({
       where: {
         id: clipId,
         viralAnalysis: {
@@ -72,7 +72,7 @@ export async function POST(
 
   const { id: clipId } = await params;
 
-  const clip = await db.clip.findFirst({
+  const clip = await prisma.clip.findFirst({
     where: {
       id: clipId,
       viralAnalysis: {
@@ -102,7 +102,7 @@ export async function POST(
   try {
     const videoId = clip.viralAnalysis.videoId;
 
-    const job = await db.job.create({
+    const job = await prisma.job.create({
       data: {
         userId: session.user.id,
         videoId,

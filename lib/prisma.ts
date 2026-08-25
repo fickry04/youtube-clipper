@@ -17,7 +17,4 @@ const prisma =
 
 if (process.env.NODE_ENV !== "production") globalForPrisma.prisma = prisma;
 
-// Named export for routes that use `import { db } from '@/lib/prisma'`
-export { prisma as db };
-
 export default prisma;

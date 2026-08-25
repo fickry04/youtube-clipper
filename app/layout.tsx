@@ -63,6 +63,7 @@ export default function RootLayout({
   return (
     <html
       lang="en"
+      data-scroll-behavior="smooth"
       className={`${inter.variable} ${montserrat.variable} ${poppins.variable} ${roboto.variable} ${bebasNeue.variable} ${oswald.variable} h-full`}
     >
       <body className="min-h-full">{children}</body>

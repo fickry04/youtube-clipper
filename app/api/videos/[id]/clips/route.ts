@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
-import { db } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import type { CreateClipsPayload } from '@/lib/queue/jobs';
 
@@ -18,7 +18,7 @@ export async function GET(
   const { id: videoId } = await params;
 
   // Verify ownership
-  const video = await db.video.findFirst({
+  const video = await prisma.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
     select: { id: true },
   });
@@ -31,7 +31,7 @@ export async function GET(
   }
 
   try {
-    const viralAnalysis = await db.viralAnalysis.findUnique({
+    const viralAnalysis = await prisma.viralAnalysis.findUnique({
       where: { videoId },
       include: {
         clips: {
@@ -94,7 +94,7 @@ export async function POST(
   }
 
   // Ownership + guard checks
-  const video = await db.video.findFirst({
+  const video = await prisma.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
     include: {
       viralAnalysis: {
@@ -141,7 +141,7 @@ export async function POST(
   }
 
   try {
-    const job = await db.job.create({
+    const job = await prisma.job.create({
       data: {
         userId: session.user.id,
         videoId,
