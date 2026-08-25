@@ -56,6 +56,11 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
 
   return (
     <AbsoluteFill style={{ backgroundColor: '#000000' }}>
+      {/* Load Google Fonts for Remotion Player & Export Renderer */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800;900&family=Montserrat:wght@400;600;700;800;900&family=Oswald:wght@500;600;700&family=Poppins:wght@400;600;700;800;900&family=Roboto:wght@400;500;700;900&display=swap');
+      `}</style>
+
       {/* Background 9:16 Vertical Video */}
       {videoSrc && (
         <AbsoluteFill>

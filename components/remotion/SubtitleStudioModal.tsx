@@ -92,11 +92,11 @@ const PRESET_OPTIONS: Array<{
 
 const FONT_OPTIONS = [
   { id: 'Montserrat', name: 'Montserrat', desc: 'Modern Bold' },
+  { id: 'Bebas Neue', name: 'Bebas Neue', desc: 'Tall Condensed' },
+  { id: 'Poppins', name: 'Poppins', desc: 'Rounded Soft' },
+  { id: 'Oswald', name: 'Oswald', desc: 'Impact Punchy' },
   { id: 'Inter', name: 'Inter', desc: 'Clean Tech' },
-  { id: 'Poppins', name: 'Poppins', desc: 'Geometric' },
-  { id: 'Impact', name: 'Impact', desc: 'Ultra Punchy' },
-  { id: 'Roboto', name: 'Roboto', desc: 'Smooth' },
-  { id: 'Arial', name: 'Arial', desc: 'Classic' },
+  { id: 'Roboto', name: 'Roboto', desc: 'Smooth Sans' },
 ];
 
 const COLOR_PALETTE = [
