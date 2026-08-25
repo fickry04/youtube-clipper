@@ -3,7 +3,7 @@ import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
 import { notFound, redirect } from 'next/navigation';
-import type { TranscriptSegment } from '@/lib/types';
+import { parseTranscriptSegments } from '@/lib/utils';
 import { getStorage, StorageKeys } from '@/lib/storage';
 
 import { VideoDetailManager } from '@/components/video/VideoDetailManager';
@@ -85,8 +85,19 @@ export default async function VideoDetailPage({
     })
   );
 
+  const transcript = video.transcript;
+  const segments = parseTranscriptSegments(transcript?.segments);
+  const hasTranscript = segments.length > 0;
+  const viralAnalysis = video.viralAnalysis;
+
   const videoWithVertical = {
     ...video,
+    transcript: video.transcript
+      ? {
+        ...video.transcript,
+        segments,
+      }
+      : null,
     viralAnalysis: video.viralAnalysis
       ? {
         ...video.viralAnalysis,
@@ -94,11 +105,6 @@ export default async function VideoDetailPage({
       }
       : null,
   };
-
-  const transcript = video.transcript;
-  const segments = (transcript?.segments as unknown as TranscriptSegment[]) ?? [];
-  const hasTranscript = Array.isArray(segments) && segments.length > 0;
-  const viralAnalysis = video.viralAnalysis;
 
   return (
     <div className="dash-page">

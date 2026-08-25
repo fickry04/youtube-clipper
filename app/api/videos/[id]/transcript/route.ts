@@ -3,7 +3,7 @@ import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { fetchTranscript } from 'youtube-transcript-plus';
 import { decodeHtmlEntities } from '@/lib/utils';
-import type { TranscriptSegment } from '@/lib/types';
+import { InputJsonValue } from '@prisma/client/runtime/client';
 
 export async function GET(
   request: NextRequest,
@@ -46,7 +46,7 @@ export async function GET(
     }
 
     // 2. Decode HTML entities and map to our schema
-    const segments: TranscriptSegment[] = rawSegments.map((s) => ({
+    const segments: InputJsonValue = rawSegments.map((s) => ({
       text: decodeHtmlEntities(s.text),
       offset: s.offset,
       duration: s.duration,
@@ -58,13 +58,13 @@ export async function GET(
       where: { videoId },
       update: {
         languageCode: lang ?? 'default',
-        segments: JSON.stringify(segments),
+        segments: segments,
         updatedAt: new Date(),
       },
       create: {
         videoId,
         languageCode: lang ?? 'default',
-        segments: JSON.stringify(segments),
+        segments: segments,
       },
     });
 

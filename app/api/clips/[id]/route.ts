@@ -1,6 +1,6 @@
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
-import { db } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 
 export async function GET(
   _request: NextRequest,
@@ -17,7 +17,7 @@ export async function GET(
 
   try {
     // Ownership chain: clip → viralAnalysis → video → project → user
-    const clip = await db.clip.findFirst({
+    const clip = await prisma.clip.findFirst({
       where: {
         id: clipId,
         viralAnalysis: {

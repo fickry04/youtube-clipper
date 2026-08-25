@@ -18,6 +18,7 @@ import { getStorage, StorageKeys, LocalStorageService } from '../../lib/storage'
 import { transcribeClip } from '../../lib/whisper';
 import { cuesToSrt, groupWordsIntoCues } from '../../lib/transcript/word-timestamps';
 import { renderRemotionSubtitles } from '../../lib/remotion/render';
+import { parseTranscriptSegments } from '../../lib/utils';
 import type { GenerateSubtitlePayload } from '../../lib/queue/jobs';
 import type { CaptionCue } from '../../remotion/types';
 
@@ -77,7 +78,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
         if (!clip) throw new Error(`Clip ${clipId} tidak ditemukan.`);
 
         const transcript = clip.viralAnalysis.video.transcript;
-        const segments = (transcript?.segments as unknown as Array<{ offset: number; duration: number; text: string; lang?: string }>) ?? [];
+        const segments = parseTranscriptSegments(transcript?.segments);
 
         let verticalPath: string;
         if (storage instanceof LocalStorageService) {

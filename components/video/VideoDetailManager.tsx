@@ -9,6 +9,7 @@ import { CropFaceButton } from './CropFaceButton';
 import { ExpandedPhoneModal } from './ExpandedPhoneModal';
 
 import type { TranscriptSegment } from '@/lib/types';
+import { parseTranscriptSegments } from '@/lib/utils';
 
 export interface JobInfo {
   id: string;
@@ -85,6 +86,7 @@ export function VideoDetailManager({
   const router = useRouter();
 
   const [jobs, setJobs] = useState<JobInfo[]>(initialVideo.jobs);
+  const [transcript, setTranscript] = useState(initialVideo.transcript);
   const [activeClipAction, setActiveClipAction] = useState<string | null>(null);
   const [videoViews, setVideoViews] = useState<Record<string, 'original' | 'vertical'>>({});
   const [subtitleViews, setSubtitleViews] = useState<Record<string, boolean>>({});
@@ -221,8 +223,7 @@ export function VideoDetailManager({
     }
   }, [videoId, router]);
 
-  const transcript = initialVideo.transcript;
-  const segments = Array.isArray(transcript?.segments) ? transcript.segments : [];
+  const segments = parseTranscriptSegments(transcript?.segments);
   const hasTranscript = segments.length > 0;
   const viralAnalysis = initialVideo.viralAnalysis;
 
@@ -649,6 +650,13 @@ export function VideoDetailManager({
             youtubeId={initialVideo.youtubeId}
             initialSegments={segments}
             initialLanguageCode={transcript?.languageCode ?? ''}
+            onTranscriptUpdated={(newSegments, newLang) => {
+              setTranscript({
+                id: transcript?.id || '',
+                languageCode: newLang,
+                segments: newSegments,
+              });
+            }}
           />
         </div>
 
@@ -768,19 +776,43 @@ export function VideoDetailManager({
                                 </div>
                               ) : isFailed ? (
                                 <div className="clip-video-failed">
-                                  <p style={{ fontSize: '0.8rem', fontWeight: 600 }}>Download Failed</p>
-                                  {clip.processingError && (
-                                    <p className="clip-error-detail" style={{ fontSize: '0.7rem' }}>
-                                      {clip.processingError}
-                                    </p>
-                                  )}
+                                  <div style={{ display: 'flex', alignItems: 'center', gap: '6px', color: '#f87171' }}>
+                                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                      <circle cx="12" cy="12" r="10" />
+                                      <line x1="12" y1="8" x2="12" y2="12" />
+                                      <line x1="12" y1="16" x2="12.01" y2="16" />
+                                    </svg>
+                                    <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>Download Gagal</span>
+                                  </div>
+
                                   <button
+                                    id={`retry-clip-${clip.id}-btn`}
                                     onClick={() => handleCutClips(clip.id)}
-                                    disabled={isJobRunning || isThisClipActive}
-                                    className="form-submit-btn"
-                                    style={{ marginTop: '8px', fontSize: '0.75rem', padding: '4px 8px' }}
+                                    disabled={isThisClipActive}
+                                    className="cut-clips-btn"
+                                    style={{
+                                      fontSize: '0.75rem',
+                                      padding: '6px 12px',
+                                      background: 'linear-gradient(135deg, #ef4444, #dc2626)',
+                                      borderColor: 'rgba(239, 68, 68, 0.4)',
+                                    }}
                                   >
-                                    Retry
+                                    {isThisClipActive ? (
+                                      <>
+                                        <span className="auth-spinner" aria-hidden="true" />
+                                        Downloading…
+                                      </>
+                                    ) : (
+                                      <>
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                                          <path d="M21 12a9 9 0 0 0-9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" />
+                                          <path d="M3 3v5h5" />
+                                          <path d="M3 12a9 9 0 0 0 9 9 9.75 9.75 0 0 0 6.74-2.74L21 16" />
+                                          <path d="M16 16h5v5" />
+                                        </svg>
+                                        Download Ulang Clip
+                                      </>
+                                    )}
                                   </button>
                                 </div>
                               ) : (
@@ -840,6 +872,49 @@ export function VideoDetailManager({
                           <div className="clip-timerange">
                             {clip.startTime} → {clip.endTime}
                           </div>
+
+                          {/* Detail Error Worker if failed */}
+                          {isFailed && clip.processingError && (
+                            <div
+                              className="clip-error-alert"
+                              style={{
+                                padding: '10px 12px',
+                                borderRadius: '8px',
+                                background: 'rgba(239, 68, 68, 0.08)',
+                                border: '1px solid rgba(239, 68, 68, 0.25)',
+                                color: '#fca5a5',
+                                fontSize: '0.78rem',
+                                marginTop: '10px',
+                                marginBottom: '8px',
+                              }}
+                            >
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 600, color: '#f87171', marginBottom: '6px' }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <line x1="12" y1="8" x2="12" y2="12" />
+                                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                                </svg>
+                                <span>Detail Error Worker:</span>
+                              </div>
+                              <pre
+                                style={{
+                                  margin: 0,
+                                  fontSize: '0.72rem',
+                                  fontFamily: 'ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace',
+                                  whiteSpace: 'pre-wrap',
+                                  wordBreak: 'break-word',
+                                  background: 'rgba(0, 0, 0, 0.35)',
+                                  padding: '8px 10px',
+                                  borderRadius: '6px',
+                                  color: '#fecaca',
+                                  maxHeight: '120px',
+                                  overflowY: 'auto',
+                                }}
+                              >
+                                {clip.processingError}
+                              </pre>
+                            </div>
+                          )}
 
                           {/* Actions: Face Crop Row (Top) & Subtitle Row (Bottom) */}
                           <div className="clip-actions-container">

@@ -14,11 +14,23 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as os from 'os';
+import { existsSync } from 'fs';
 import prisma from '../../lib/prisma';
 import { getStorage, StorageKeys } from '../../lib/storage';
 import type { CreateClipsPayload } from '../../lib/queue/jobs';
 
 const YTDLP_BIN = process.env.YTDLP_PATH ?? 'yt-dlp';
+
+function getCookiesPath(): string | null {
+  if (process.env.YTDLP_COOKIES_PATH && existsSync(process.env.YTDLP_COOKIES_PATH)) {
+    return process.env.YTDLP_COOKIES_PATH;
+  }
+  const rootCookies = path.join(process.cwd(), 'cookies.txt');
+  if (existsSync(rootCookies)) {
+    return rootCookies;
+  }
+  return null;
+}
 
 async function downloadClipSection(
   youtubeUrl: string,
@@ -27,11 +39,15 @@ async function downloadClipSection(
   outputPattern: string,
   onProgress?: (percent: number) => void
 ): Promise<void> {
+  const cookiesPath = getCookiesPath();
+
   const args = [
     '-4',
     '--download-sections',
     `*${startSec}-${endSec}`,
     '--force-keyframes-at-cuts',
+    '--postprocessor-args',
+    'ffmpeg:-preset veryfast -threads 0',
     '--merge-output-format',
     'mp4',
     '--output',
@@ -40,15 +56,16 @@ async function downloadClipSection(
     '--js-runtimes',
     'node',
     '--newline',
-    '--extractor-args',
-    'youtube:player_client=web_embedded',
+    ...(cookiesPath
+      ? ['--cookies', cookiesPath]
+      : ['--extractor-args', 'youtube:player_client=web_embedded']),
     youtubeUrl,
   ];
 
   await new Promise<void>((resolve, reject) => {
     let stderrOutput = '';
     const child = spawn(YTDLP_BIN, args, {
-      timeout: 5 * 60 * 1000, // 5 minutes max per clip
+      timeout: 15 * 60 * 1000, // 15 minutes max per clip
     });
 
     child.stdout?.on('data', (data: Buffer) => {
@@ -66,11 +83,43 @@ async function downloadClipSection(
       stderrOutput += data.toString();
     });
 
-    child.on('close', (code) => {
+    child.on('close', (code, signal) => {
       if (code === 0) {
         resolve();
       } else {
-        reject(new Error(`yt-dlp exited with code ${code}. Error: ${stderrOutput}`));
+        const meaningfulLines = stderrOutput
+          .split('\n')
+          .map((l) => l.trim())
+          .filter(
+            (l) =>
+              l.length > 0 &&
+              !l.startsWith('Input #') &&
+              !l.startsWith('Stream #') &&
+              !l.startsWith('Metadata:') &&
+              !l.startsWith('Duration:') &&
+              !l.startsWith('Press [q]') &&
+              !l.startsWith('[download]') &&
+              !l.startsWith('[libx264') &&
+              !l.startsWith('[aac') &&
+              !l.startsWith('[mp4') &&
+              !l.startsWith('[out#') &&
+              !l.startsWith('frame=') &&
+              !l.startsWith('CPB properties') &&
+              !l.startsWith('encoder')
+          );
+
+        // Prioritize explicit ERROR lines from yt-dlp/ffmpeg
+        const explicitErrors = meaningfulLines.filter((l) => l.toLowerCase().includes('error'));
+        const exitInfo = signal ? `[Signal: ${signal}]` : `[Exit code: ${code}]`;
+        const errorHighlight =
+          explicitErrors.length > 0
+            ? `${explicitErrors.join('\n')} ${exitInfo}`
+            : meaningfulLines.length > 0
+              ? `${meaningfulLines.slice(-4).join('\n')} ${exitInfo}`
+              : `yt-dlp terminated unexpectedly ${exitInfo}`;
+
+        console.error(`[clip.processor] yt-dlp failed with ${exitInfo}. Raw stderr:\n${stderrOutput}`);
+        reject(new Error(errorHighlight));
       }
     });
 
@@ -149,7 +198,7 @@ export async function processClips(job: Job<CreateClipsPayload>): Promise<void> 
               await prisma.job.update({
                 where: { id: jobId },
                 data: { progress: overallPct },
-              }).catch(() => {});
+              }).catch(() => { });
             }
           }
         );

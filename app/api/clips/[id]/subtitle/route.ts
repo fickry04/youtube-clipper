@@ -15,6 +15,7 @@ import { transcribeClip } from '@/lib/whisper';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
 import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
 import type { TranscriptSegment } from '@/lib/types';
+import { parseTranscriptSegments } from '@/lib/utils';
 
 export async function GET(
   request: NextRequest,
@@ -110,16 +111,7 @@ export async function GET(
       }
 
       const transcript = clip.viralAnalysis.video.transcript;
-      let rawSegments: TranscriptSegment[] = [];
-      if (transcript?.segments) {
-        if (typeof transcript.segments === 'string') {
-          try {
-            rawSegments = JSON.parse(transcript.segments);
-          } catch { }
-        } else if (Array.isArray(transcript.segments)) {
-          rawSegments = transcript.segments as unknown as TranscriptSegment[];
-        }
-      }
+      const rawSegments: TranscriptSegment[] = parseTranscriptSegments(transcript?.segments);
 
       const selectedEngine: 'whisper' | 'gemini' = requestedEngine || savedStyleConfig?.sttEngine || 'whisper';
 

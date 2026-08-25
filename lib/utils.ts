@@ -68,6 +68,27 @@ export function decodeHtmlEntities(text: string): string {
 
 export const ytLinkRegex = /^((?:https?:)?\/\/)?((?:www|m)\.)?((?:youtube\.com|youtu.be))(\/(?:[\w\-]+\?v=|embed\/|v\/)?)([\w\-]+)(\S+)?$/;
 
+import type { TranscriptSegment } from '@/lib/types';
+
+/**
+ * Safely parses transcript segments whether stored as a JSON string, nested JSON string, or array.
+ */
+export function parseTranscriptSegments(raw: unknown): TranscriptSegment[] {
+  if (!raw) return [];
+  let parsed = raw;
+  if (typeof parsed === 'string') {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      return [];
+    }
+  }
+  if (Array.isArray(parsed)) {
+    return parsed as TranscriptSegment[];
+  }
+  return [];
+}
+
 export interface VideoInfo {
   title: string;
   duration_string: string;

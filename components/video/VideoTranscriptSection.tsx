@@ -11,6 +11,7 @@ interface VideoTranscriptSectionProps {
   youtubeId: string;
   initialSegments: TranscriptSegment[];
   initialLanguageCode: string;
+  onTranscriptUpdated?: (segments: TranscriptSegment[], lang: string) => void;
 }
 
 type Step = 'idle' | 'loading-languages' | 'language-selection' | 'loading-transcript';
@@ -20,6 +21,7 @@ export function VideoTranscriptSection({
   youtubeId,
   initialSegments,
   initialLanguageCode,
+  onTranscriptUpdated,
 }: VideoTranscriptSectionProps) {
   const router = useRouter();
 
@@ -27,8 +29,22 @@ export function VideoTranscriptSection({
   const [error, setError] = useState('');
   const [languages, setLanguages] = useState<LanguageInfo[]>([]);
   const [selectedLang, setSelectedLang] = useState<string | null>(null);
+  const [prevInitialSegments, setPrevInitialSegments] = useState(initialSegments);
+  const [prevInitialLang, setPrevInitialLang] = useState(initialLanguageCode);
+  const [currentSegments, setCurrentSegments] = useState<TranscriptSegment[]>(initialSegments);
+  const [currentLanguageCode, setCurrentLanguageCode] = useState<string>(initialLanguageCode);
 
-  const hasTranscript = initialSegments.length > 0;
+  if (initialSegments !== prevInitialSegments) {
+    setPrevInitialSegments(initialSegments);
+    setCurrentSegments(initialSegments);
+  }
+
+  if (initialLanguageCode !== prevInitialLang) {
+    setPrevInitialLang(initialLanguageCode);
+    setCurrentLanguageCode(initialLanguageCode);
+  }
+
+  const hasTranscript = currentSegments.length > 0;
 
   const selectedLangLabel = useMemo(() => {
     if (!selectedLang) return null;
@@ -84,6 +100,13 @@ export function VideoTranscriptSection({
         return;
       }
 
+      if (Array.isArray(data.segments)) {
+        setCurrentSegments(data.segments);
+        const newLang = data.languageCode || selectedLang || '';
+        setCurrentLanguageCode(newLang);
+        onTranscriptUpdated?.(data.segments, newLang);
+      }
+
       // Refresh server data and go back to idle to show new transcript
       router.refresh();
       setStep('idle');
@@ -91,7 +114,7 @@ export function VideoTranscriptSection({
       setError('Network error. Unable to fetch video transcript.');
       setStep('language-selection');
     }
-  }, [videoId, selectedLang, router]);
+  }, [videoId, selectedLang, router, onTranscriptUpdated]);
 
   const handleCancel = useCallback(() => {
     setStep('idle');
@@ -114,7 +137,7 @@ export function VideoTranscriptSection({
             {hasTranscript && step === 'idle' && (
               <span className="vts-header-badge">
                 <span className="vts-header-badge-dot" />
-                {initialSegments.length} segments ({initialLanguageCode.toUpperCase()})
+                {currentSegments.length} segments ({currentLanguageCode.toUpperCase()})
               </span>
             )}
           </div>
@@ -131,29 +154,16 @@ export function VideoTranscriptSection({
                 <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} aria-hidden="true" />
                 Extracting Transcript…
               </button>
-            ) : step === 'idle' ? (
+            ) : step === 'idle' && hasTranscript ? (
               <button
                 id="fetch-transcript-btn"
                 onClick={handleFetchLanguages}
-                className={`vts-fetch-btn ${!hasTranscript ? 'vts-fetch-btn-primary' : ''}`}
+                className="vts-fetch-btn"
               >
-                {hasTranscript ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
-                    </svg>
-                    Re-fetch Transcript
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
-                      <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                      <polyline points="7 10 12 15 17 10" />
-                      <line x1="12" y1="15" x2="12" y2="3" />
-                    </svg>
-                    Fetch Transcript
-                  </>
-                )}
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                  <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67" />
+                </svg>
+                Re-fetch Transcript
               </button>
             ) : null}
           </div>
@@ -386,8 +396,8 @@ export function VideoTranscriptSection({
         {hasTranscript && !isBusy && step !== 'language-selection' && (
           <TranscriptViewer
             videoId={youtubeId}
-            segments={initialSegments}
-            languageCode={initialLanguageCode}
+            segments={currentSegments}
+            languageCode={currentLanguageCode}
           />
         )}
       </div>
