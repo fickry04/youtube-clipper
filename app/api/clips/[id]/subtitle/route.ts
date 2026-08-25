@@ -77,21 +77,23 @@ export async function GET(
       } catch { }
     }
 
-    let cues = savedCues;
-    const currentEngine = savedStyleConfig?.sttEngine || 'whisper';
-    const isEngineMismatch = requestedEngine && requestedEngine !== currentEngine;
+    let cues: CaptionCue[] | null = null;
+    let hasExistingSubtitle = false;
 
-    if (!forceRetranscribe && !isEngineMismatch && savedCues && savedCues.length > 0) {
-      const allWords = savedCues.flatMap((c: CaptionCue) => c.words || []);
-      if (allWords.length > 0) {
-        cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
+    if (savedCues && savedCues.length > 0) {
+      hasExistingSubtitle = true;
+      if (!forceRetranscribe) {
+        const allWords = savedCues.flatMap((c: CaptionCue) => c.words || []);
+        if (allWords.length > 0) {
+          cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
+        } else {
+          cues = savedCues;
+        }
       }
-    } else {
-      cues = null;
     }
 
-    // 2. If no valid cues exist or retranscribe requested, run STT with selected engine
-    if (!cues || cues.length === 0) {
+    // 2. Only run STT if forceRetranscribe is explicitly true
+    if (forceRetranscribe) {
       const storage = getStorage();
       const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
       const originalKey = StorageKeys.clipVideo(session.user.id, clipId);
@@ -157,6 +159,7 @@ export async function GET(
 
       // Cache the generated cues in database
       if (cues && cues.length > 0) {
+        hasExistingSubtitle = true;
         await prisma.subtitle.upsert({
           where: { clipId_format: { clipId, format: 'json' } },
           update: {
@@ -177,6 +180,7 @@ export async function GET(
       return Response.json({
         success: true,
         clipId,
+        hasExistingSubtitle,
         cues: cues || [],
         styleConfig: savedStyleConfig,
         duration: clip.durationSeconds,
@@ -228,10 +232,12 @@ export async function POST(
 
   let aspectRatio: '16:9' | '9:16' | 'all' = '9:16';
   let styleConfig: SubtitleStyleConfig | undefined = undefined;
+  let cues: CaptionCue[] | undefined = undefined;
   try {
     const body = await request.json().catch(() => ({}));
     if (body.aspectRatio) aspectRatio = body.aspectRatio;
     if (body.styleConfig) styleConfig = body.styleConfig;
+    if (Array.isArray(body.cues) && body.cues.length > 0) cues = body.cues;
   } catch {
     // Ignore JSON parsing errors and use default
   }
@@ -276,13 +282,28 @@ export async function POST(
   try {
     const videoId = clip.viralAnalysis.videoId;
 
+    if (cues && cues.length > 0 && styleConfig) {
+      await prisma.subtitle.upsert({
+        where: { clipId_format: { clipId, format: 'json' } },
+        update: {
+          content: JSON.stringify({ cues, styleConfig, updatedAt: new Date().toISOString() }),
+          updatedAt: new Date(),
+        },
+        create: {
+          clipId,
+          format: 'json',
+          content: JSON.stringify({ cues, styleConfig, updatedAt: new Date().toISOString() }),
+        },
+      }).catch(() => {});
+    }
+
     const job = await prisma.job.create({
       data: {
         userId: session.user.id,
         videoId,
         type: 'GENERATE_SUBTITLE',
         status: 'QUEUED',
-        payload: JSON.stringify({ clipId, aspectRatio, styleConfig }),
+        payload: JSON.stringify({ clipId, aspectRatio, cues, styleConfig }),
       },
     });
 
@@ -294,6 +315,7 @@ export async function POST(
         userId: session.user.id,
         clipId,
         aspectRatio,
+        cues,
         styleConfig,
       } satisfies GenerateSubtitlePayload,
       { jobId: job.id }

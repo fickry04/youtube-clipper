@@ -1,4 +1,4 @@
-import type { SubtitleStyleConfig } from '@/remotion/types';
+import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
 
 // Job type definitions for BullMQ queues
 // These are used by both the API (to enqueue) and the worker (to process)
@@ -69,6 +69,7 @@ export interface GenerateSubtitlePayload {
   userId: string;
   clipId: string;
   aspectRatio?: '16:9' | '9:16' | 'all';
+  cues?: CaptionCue[];
   styleConfig?: SubtitleStyleConfig;
   sttEngine?: 'whisper' | 'gemini';
 }

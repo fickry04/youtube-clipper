@@ -1,7 +1,8 @@
 'use client';
 
-import { useState, useEffect, useSyncExternalStore } from 'react';
+import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
+import type { PlayerRef } from '@remotion/player';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
 import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp } from '@/remotion/types';
 import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
@@ -151,8 +152,12 @@ export function SubtitleStudioModal({
   const [rawWords, setRawWords] = useState<WordTimestamp[]>([]);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [loadingCues, setLoadingCues] = useState(true);
-  const [isChangingEngine, setIsChangingEngine] = useState(false);
+  const [isTranscribing, setIsTranscribing] = useState(false);
+  const [hasExistingTranscription, setHasExistingTranscription] = useState(false);
   const [cuesError, setCuesError] = useState<string | null>(null);
+  const [activeTab, setActiveTab] = useState<'styling' | 'editor'>('styling');
+
+  const playerRef = useRef<PlayerRef | null>(null);
 
   const [wordsPerPage, setWordsPerPage] = useState<number>(3);
   const [config, setConfig] = useState<SubtitleStyleConfig>({
@@ -173,31 +178,139 @@ export function SubtitleStudioModal({
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  const handleEngineChange = async (newEngine: 'whisper' | 'gemini') => {
-    if ((config.sttEngine || 'whisper') === newEngine && cues.length > 0 && !isChangingEngine) return;
-    setConfig((prev) => ({ ...prev, sttEngine: newEngine }));
-    setIsChangingEngine(true);
+  const handleSeekToCue = (startSeconds: number) => {
+    if (playerRef.current) {
+      const frame = Math.max(0, Math.round(startSeconds * 30));
+      playerRef.current.seekTo(frame);
+      playerRef.current.play();
+    }
+  };
+
+  const updateCueText = (cueIndex: number, newText: string) => {
+    setCues((prev) => {
+      const next = [...prev];
+      const target = next[cueIndex];
+      if (!target) return prev;
+
+      const trimmed = newText.trim();
+      const rawWordsList = trimmed.split(/\s+/).filter(Boolean);
+      const wordCount = rawWordsList.length;
+      const duration = Math.max(0.05, target.end - target.start);
+      const wordDuration = wordCount > 0 ? duration / wordCount : duration;
+
+      const updatedWords: WordTimestamp[] = rawWordsList.map((w, idx) => ({
+        word: w,
+        start: Number((target.start + idx * wordDuration).toFixed(3)),
+        end: Number((target.start + (idx + 1) * wordDuration).toFixed(3)),
+      }));
+
+      next[cueIndex] = {
+        ...target,
+        text: newText,
+        words: updatedWords,
+      };
+      return next;
+    });
+  };
+
+  const updateCueTiming = (cueIndex: number, field: 'start' | 'end', newValue: number) => {
+    setCues((prev) => {
+      const next = [...prev];
+      const target = next[cueIndex];
+      if (!target) return prev;
+
+      const clampedVal = Number(Math.max(0, Math.min(durationSeconds, newValue)).toFixed(2));
+      let newStart = field === 'start' ? clampedVal : target.start;
+      let newEnd = field === 'end' ? clampedVal : target.end;
+
+      if (newEnd < newStart + 0.05) {
+        if (field === 'start') newEnd = Math.min(durationSeconds, newStart + 0.05);
+        else newStart = Math.max(0, newEnd - 0.05);
+      }
+
+      const duration = Math.max(0.05, newEnd - newStart);
+      const wordsCount = target.words.length || 1;
+      const wordDuration = duration / wordsCount;
+
+      const updatedWords: WordTimestamp[] = target.words.map((w, idx) => ({
+        ...w,
+        start: Number((newStart + idx * wordDuration).toFixed(3)),
+        end: Number((newStart + (idx + 1) * wordDuration).toFixed(3)),
+      }));
+
+      next[cueIndex] = {
+        ...target,
+        start: Number(newStart.toFixed(2)),
+        end: Number(newEnd.toFixed(2)),
+        words: updatedWords,
+      };
+      return next;
+    });
+  };
+
+  const handleAddCue = (afterIndex?: number) => {
+    setCues((prev) => {
+      const next = [...prev];
+      let newStart = 0;
+      let newEnd = 2.0;
+
+      if (typeof afterIndex === 'number' && next[afterIndex]) {
+        newStart = Number((next[afterIndex].end + 0.05).toFixed(2));
+        newEnd = Number(Math.min(durationSeconds, newStart + 2.0).toFixed(2));
+      } else if (next.length > 0) {
+        newStart = Number((next[next.length - 1].end + 0.05).toFixed(2));
+        newEnd = Number(Math.min(durationSeconds, newStart + 2.0).toFixed(2));
+      }
+
+      const newCue: CaptionCue = {
+        id: `manual-cue-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`,
+        start: newStart,
+        end: newEnd,
+        text: 'Teks baru...',
+        words: [
+          { word: 'Teks', start: newStart, end: Number((newStart + (newEnd - newStart) / 2).toFixed(3)) },
+          { word: 'baru...', start: Number((newStart + (newEnd - newStart) / 2).toFixed(3)), end: newEnd },
+        ],
+      };
+
+      if (typeof afterIndex === 'number') {
+        next.splice(afterIndex + 1, 0, newCue);
+      } else {
+        next.push(newCue);
+      }
+      return next;
+    });
+  };
+
+  const handleDeleteCue = (index: number) => {
+    setCues((prev) => prev.filter((_, idx) => idx !== index));
+  };
+
+  const handleRunTranscription = async () => {
+    const selectedEngine = config.sttEngine || 'whisper';
+    setIsTranscribing(true);
     setCuesError(null);
     try {
       const res = await fetch(
-        `/api/clips/${clipId}/subtitle?format=cues&engine=${newEngine}&retranscribe=true&wordsPerPage=${wordsPerPage}`
+        `/api/clips/${clipId}/subtitle?format=cues&engine=${selectedEngine}&retranscribe=true&wordsPerPage=${wordsPerPage}`
       );
       const data = await res.json();
-      if (data.success && Array.isArray(data.cues)) {
+      if (data.success && Array.isArray(data.cues) && data.cues.length > 0) {
         const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
         setRawWords(extractedWords);
-        if (extractedWords.length > 0) {
-          setCues(groupWordsIntoCues(extractedWords, wordsPerPage, durationSeconds));
-        } else {
-          setCues(data.cues);
-        }
+        setCues(groupWordsIntoCues(extractedWords, wordsPerPage, durationSeconds));
+        setHasExistingTranscription(true);
+      } else if (data.success && Array.isArray(data.cues)) {
+        setRawWords([]);
+        setCues([]);
+        setHasExistingTranscription(false);
       } else {
-        setCuesError(data.error || 'Gagal memproses ulang transkripsi dengan engine yang dipilih.');
+        setCuesError(data.error || 'Gagal menghasilkan transkripsi dengan engine yang dipilih.');
       }
     } catch {
-      setCuesError('Gagal terhubung ke server untuk mengubah engine transkripsi.');
+      setCuesError('Gagal terhubung ke server untuk memproses transkripsi audio.');
     } finally {
-      setIsChangingEngine(false);
+      setIsTranscribing(false);
     }
   };
 
@@ -209,9 +322,9 @@ export function SubtitleStudioModal({
         const res = await fetch(`/api/clips/${clipId}/subtitle?format=cues`);
         const data = await res.json();
         if (ignore) return;
-        if (data.success && Array.isArray(data.cues)) {
-          const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
-          setRawWords(extractedWords);
+        if (data.success) {
+          const hasExisting = Boolean(data.hasExistingSubtitle && Array.isArray(data.cues) && data.cues.length > 0);
+          setHasExistingTranscription(hasExisting);
 
           let initialPageSize = 3;
           if (data.styleConfig) {
@@ -225,13 +338,21 @@ export function SubtitleStudioModal({
             }
           }
 
-          if (extractedWords.length > 0) {
-            setCues(groupWordsIntoCues(extractedWords, initialPageSize, durationSeconds));
+          if (hasExisting && Array.isArray(data.cues)) {
+            const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
+            setRawWords(extractedWords);
+            if (extractedWords.length > 0) {
+              setCues(groupWordsIntoCues(extractedWords, initialPageSize, durationSeconds));
+            } else {
+              setCues(data.cues);
+            }
           } else {
-            setCues(data.cues);
+            // Keep preview clean and empty when no transcription exists yet
+            setRawWords([]);
+            setCues([]);
           }
         } else {
-          setCuesError(data.error || 'Gagal memuat transkrip klip.');
+          setCuesError(data.error || 'Gagal memuat informasi transkrip.');
         }
       } catch {
         if (!ignore) setCuesError('Gagal terhubung ke server untuk memuat transkrip.');
@@ -289,6 +410,7 @@ export function SubtitleStudioModal({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           aspectRatio: '9:16',
+          cues: cues.length > 0 ? cues : undefined,
           styleConfig: {
             ...config,
             wordsPerPage,
@@ -437,7 +559,8 @@ export function SubtitleStudioModal({
               gap: '10px',
             }}
           >
-            <div style={{ width: '100%', maxWidth: '240px' }}>
+            {/* 9:16 Video Player or Loading Skeleton */}
+            <div style={{ width: '100%', maxWidth: '240px', position: 'relative' }}>
               {loadingCues ? (
                 <div
                   style={{
@@ -456,8 +579,8 @@ export function SubtitleStudioModal({
                   }}
                 >
                   <span className="auth-spinner" style={{ width: '28px', height: '28px' }} />
-                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>Local Whisper AI:</span>
-                  <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Mengekstrak Word-Level Timestamps langsung dari audio klip…</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: '#f8fafc' }}>Memeriksa Subtitle…</span>
+                  <span style={{ fontSize: '0.74rem', color: '#94a3b8' }}>Memuat status transkripsi klip video…</span>
                 </div>
               ) : cuesError ? (
                 <div
@@ -477,561 +600,975 @@ export function SubtitleStudioModal({
                   <p style={{ fontSize: '0.85rem', fontWeight: 600 }}>{cuesError}</p>
                 </div>
               ) : (
-                <RemotionPlayerClient
-                  videoSrc={videoSrc}
-                  durationInSeconds={durationSeconds}
-                  cues={cues}
-                  styleConfig={{ ...config, wordsPerPage }}
-                  autoPlay={false}
-                  loop={true}
-                />
+                <div style={{ position: 'relative' }}>
+                  <RemotionPlayerClient
+                    playerRef={playerRef}
+                    videoSrc={videoSrc}
+                    durationInSeconds={durationSeconds}
+                    cues={cues}
+                    styleConfig={{ ...config, wordsPerPage }}
+                    autoPlay={false}
+                    loop={true}
+                  />
+                  {cues.length === 0 && (
+                    <div
+                      style={{
+                        position: 'absolute',
+                        top: '12px',
+                        left: '10px',
+                        right: '10px',
+                        backgroundColor: 'rgba(15, 23, 42, 0.88)',
+                        backdropFilter: 'blur(8px)',
+                        border: '1px solid rgba(234, 179, 8, 0.35)',
+                        borderRadius: '8px',
+                        padding: '8px',
+                        textAlign: 'center',
+                        pointerEvents: 'none',
+                        zIndex: 10,
+                      }}
+                    >
+                      <span style={{ fontSize: '0.7rem', color: '#facc15', fontWeight: 600, display: 'block', lineHeight: 1.25 }}>
+                        ⚠️ Belum ada transkripsi kata. Klik tombol &apos;Mulai Transkripsi Audio&apos; di samping.
+                      </span>
+                    </div>
+                  )}
+                </div>
               )}
             </div>
           </div>
 
-          {/* Right Column: Customization Controls with Internal Scroll */}
+          {/* Right Column: Customization Controls & Interactive Editor with Internal Scroll */}
           <div
             style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '16px',
+              gap: '14px',
               overflowY: 'auto',
               paddingRight: '6px',
             }}
           >
-            {/* 0. STT Engine Selector */}
+            {/* Tab Navigation */}
             <div
               style={{
-                backgroundColor: 'rgba(15, 23, 42, 0.65)',
-                border: '1px solid rgba(255, 255, 255, 0.08)',
-                borderRadius: '14px',
-                padding: '12px',
+                display: 'flex',
+                backgroundColor: 'rgba(15, 23, 42, 0.85)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                borderRadius: '12px',
+                padding: '4px',
+                gap: '4px',
               }}
             >
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
-                  Engine Transkripsi (Speech-to-Text)
-                </label>
-                {isChangingEngine && (
-                  <span style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
-                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#818cf8', animation: 'pulse 1s infinite' }} />
-                    Mentranskripsikan audio...
-                  </span>
-                )}
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
-                {STT_ENGINE_OPTIONS.map((eng) => {
-                  const isSelected = (config.sttEngine || 'whisper') === eng.id;
-                  return (
-                    <button
-                      key={eng.id}
-                      type="button"
-                      disabled={isChangingEngine}
-                      onClick={() => handleEngineChange(eng.id)}
-                      style={{
-                        padding: '10px',
-                        borderRadius: '10px',
-                        border: isSelected
-                          ? '2px solid #8b5cf6'
-                          : '1px solid rgba(255, 255, 255, 0.08)',
-                        backgroundColor: isSelected
-                          ? 'rgba(139, 92, 246, 0.18)'
-                          : 'rgba(30, 41, 59, 0.5)',
-                        textAlign: 'left',
-                        cursor: isChangingEngine ? 'not-allowed' : 'pointer',
-                        opacity: isChangingEngine && !isSelected ? 0.6 : 1,
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
-                          <span style={{ fontSize: '1rem' }}>{eng.icon}</span>
-                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f8fafc' }}>
-                            {eng.title}
-                          </span>
-                        </div>
-                      </div>
-                      <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '0 0 4px 0', lineHeight: 1.25 }}>
-                        {eng.desc}
-                      </p>
-                      <span
-                        style={{
-                          fontSize: '0.62rem',
-                          padding: '2px 6px',
-                          borderRadius: '4px',
-                          backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.06)',
-                          color: isSelected ? '#c084fc' : '#94a3b8',
-                          fontWeight: 600,
-                          display: 'inline-block',
-                        }}
-                      >
-                        {eng.badge}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 1. Preset Selector */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
-                Pilih Gaya Animasi Subtitle (Preset)
-              </label>
-              <div
+              <button
+                type="button"
+                onClick={() => setActiveTab('styling')}
                 style={{
-                  display: 'grid',
-                  gridTemplateColumns: 'repeat(2, 1fr)',
-                  gap: '8px',
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'styling' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                  color: activeTab === 'styling' ? '#ffffff' : '#94a3b8',
+                  fontSize: '0.84rem',
+                  fontWeight: activeTab === 'styling' ? 700 : 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: activeTab === 'styling' ? '0 1px 4px rgba(0, 0, 0, 0.3)' : 'none',
+                  transition: 'all 0.15s ease',
                 }}
               >
-                {PRESET_OPTIONS.map((preset) => {
-                  const isSelected = config.preset === preset.id;
-                  return (
-                    <button
-                      key={preset.id}
-                      type="button"
-                      onClick={() => handlePresetSelect(preset.id)}
-                      style={{
-                        padding: '10px 12px',
-                        borderRadius: '12px',
-                        border: isSelected
-                          ? '2px solid #6366f1'
-                          : '1px solid rgba(255, 255, 255, 0.08)',
-                        backgroundColor: isSelected
-                          ? 'rgba(99, 102, 241, 0.15)'
-                          : 'rgba(30, 41, 59, 0.6)',
-                        textAlign: 'left',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
-                        <span style={{ fontSize: '1.1rem' }}>{preset.icon}</span>
-                        <span style={{ fontSize: '0.88rem', fontWeight: 700, color: '#f8fafc' }}>
-                          {preset.title}
-                        </span>
-                      </div>
-                      <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0, lineHeight: 1.25 }}>
-                        {preset.desc}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
+                <span>🎨</span>
+                <span>Desain & Gaya</span>
+              </button>
 
-            {/* 2. Font Family Selector */}
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
-                  Pilihan Font Subtitle
-                </label>
-                <span style={{ fontSize: '0.74rem', color: '#818cf8', fontWeight: 700 }}>
-                  {config.fontFamily || 'Montserrat'}
-                </span>
-              </div>
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
-                {FONT_OPTIONS.map((f) => {
-                  const isSelected = (config.fontFamily || 'Montserrat') === f.id;
-                  return (
-                    <button
-                      key={f.id}
-                      type="button"
-                      onClick={() => setConfig((prev) => ({ ...prev, fontFamily: f.id }))}
-                      style={{
-                        padding: '6px 8px',
-                        borderRadius: '10px',
-                        border: isSelected
-                          ? '2px solid #6366f1'
-                          : '1px solid rgba(255, 255, 255, 0.08)',
-                        backgroundColor: isSelected
-                          ? 'rgba(99, 102, 241, 0.2)'
-                          : 'rgba(30, 41, 59, 0.6)',
-                        color: isSelected ? '#ffffff' : '#cbd5e1',
-                        cursor: 'pointer',
-                        textAlign: 'center',
-                        transition: 'all 0.12s ease',
-                      }}
-                    >
-                      <div style={{ fontSize: '0.82rem', fontWeight: 800, fontFamily: `"${f.id}", sans-serif` }}>
-                        {f.name}
-                      </div>
-                      <div style={{ fontSize: '0.64rem', color: '#94a3b8', marginTop: '1px' }}>
-                        {f.desc}
-                      </div>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 3. Color Palette */}
-            <div>
-              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
-                {config.preset === 'plain' ? 'Pilihan Warna Teks Subtitle' : 'Warna Highlight Kata Aktif'}
-              </label>
-              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {COLOR_PALETTE.map((c) => {
-                  const isSelected = config.preset === 'plain'
-                    ? (config.textColor === c.hex || config.highlightColor === c.hex)
-                    : config.highlightColor === c.hex;
-
-                  return (
-                    <button
-                      key={c.hex}
-                      type="button"
-                      onClick={() =>
-                        setConfig((prev) => ({
-                          ...prev,
-                          highlightColor: c.hex,
-                          textColor: prev.preset === 'plain' ? c.hex : prev.textColor,
-                        }))
-                      }
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '6px',
-                        padding: '5px 10px',
-                        borderRadius: '16px',
-                        border: isSelected
-                          ? '2px solid #ffffff'
-                          : '1px solid rgba(255, 255, 255, 0.12)',
-                        backgroundColor: 'rgba(30, 41, 59, 0.7)',
-                        cursor: 'pointer',
-                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                        transition: 'transform 0.1s ease',
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: '12px',
-                          height: '12px',
-                          borderRadius: '50%',
-                          backgroundColor: c.hex,
-                          boxShadow: `0 0 8px ${c.hex}88`,
-                          border: c.hex === '#FFFFFF' ? '1px solid rgba(0,0,0,0.3)' : 'none',
-                        }}
-                      />
-                      <span style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: isSelected ? 700 : 500 }}>
-                        {c.label}
-                      </span>
-                    </button>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* 3. Sliders: Font Size & Position Y */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#cbd5e1' }}>Ukuran Font</span>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#6366f1' }}>{config.fontSize}px</span>
-                </div>
-                <input
-                  type="range"
-                  min="32"
-                  max="72"
-                  step="2"
-                  value={config.fontSize || 52}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: Number(e.target.value) }))}
-                  style={{ width: '100%', accentColor: '#6366f1' }}
-                />
-              </div>
-
-              <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '10px' }}>
-                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#cbd5e1' }}>Posisi Vertikal (Y)</span>
-                  <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#6366f1' }}>{config.positionY}%</span>
-                </div>
-                <input
-                  type="range"
-                  min="50"
-                  max="88"
-                  step="1"
-                  value={config.positionY || 75}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, positionY: Number(e.target.value) }))}
-                  style={{ width: '100%', accentColor: '#6366f1' }}
-                />
-              </div>
-            </div>
-
-            {/* 4. Words per Screen & Casing */}
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
-              <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '10px' }}>
-                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                  Jumlah Kata per Baris
-                </label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  {[1, 2, 3, 4].map((count) => (
-                    <button
-                      key={count}
-                      type="button"
-                      onClick={() => handleWordsPerPageChange(count)}
-                      style={{
-                        flex: 1,
-                        padding: '5px 0',
-                        borderRadius: '6px',
-                        border: wordsPerPage === count ? '2px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.1)',
-                        backgroundColor: wordsPerPage === count ? '#6366f1' : 'rgba(15, 23, 42, 0.6)',
-                        color: '#ffffff',
-                        fontWeight: 700,
-                        fontSize: '0.76rem',
-                        cursor: 'pointer',
-                        transition: 'all 0.15s ease',
-                      }}
-                    >
-                      {count}
-                    </button>
-                  ))}
-                </div>
-              </div>
-
-              <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '10px' }}>
-                <label style={{ display: 'block', fontSize: '0.76rem', fontWeight: 600, color: '#cbd5e1', marginBottom: '6px' }}>
-                  Format Huruf
-                </label>
-                <div style={{ display: 'flex', gap: '4px' }}>
-                  <button
-                    type="button"
-                    onClick={() => setConfig((prev) => ({ ...prev, uppercase: true }))}
-                    style={{
-                      flex: 1,
-                      padding: '5px 0',
-                      borderRadius: '6px',
-                      border: config.uppercase ? '2px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.1)',
-                      backgroundColor: config.uppercase ? '#6366f1' : 'rgba(15, 23, 42, 0.6)',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '0.76rem',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    CAPS
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setConfig((prev) => ({ ...prev, uppercase: false }))}
-                    style={{
-                      flex: 1,
-                      padding: '5px 0',
-                      borderRadius: '6px',
-                      border: !config.uppercase ? '2px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.1)',
-                      backgroundColor: !config.uppercase ? '#6366f1' : 'rgba(15, 23, 42, 0.6)',
-                      color: '#ffffff',
-                      fontWeight: 700,
-                      fontSize: '0.76rem',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Normal
-                  </button>
-                </div>
-              </div>
-            </div>
-
-            {/* 5. Subtitle Timing Calibration (Offset Slider & Steppers) */}
-            <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.7)', padding: '14px 16px', borderRadius: '14px', border: '1px solid rgba(99, 102, 241, 0.25)' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontSize: '0.95rem' }}>⏱️</span>
-                  <label style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
-                    Kalibrasi Timing Subtitle (±30s)
-                  </label>
-                </div>
-
-                {/* Direct Number Input + Status Badge */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', backgroundColor: 'rgba(15, 23, 42, 0.8)', border: '1px solid rgba(99, 102, 241, 0.4)', borderRadius: '8px', padding: '2px 6px' }}>
-                    <input
-                      type="number"
-                      min="-30"
-                      max="30"
-                      step="0.1"
-                      value={Number((config.timeOffset || 0).toFixed(2))}
-                      onChange={(e) => {
-                        const val = parseFloat(e.target.value);
-                        setConfig((prev) => ({
-                          ...prev,
-                          timeOffset: isNaN(val) ? 0 : Math.max(-30, Math.min(30, val)),
-                        }));
-                      }}
-                      style={{
-                        width: '58px',
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        color: '#f8fafc',
-                        fontSize: '0.8rem',
-                        fontWeight: 700,
-                        textAlign: 'right',
-                        outline: 'none',
-                      }}
-                    />
-                    <span style={{ fontSize: '0.74rem', color: '#94a3b8', marginLeft: '2px' }}>s</span>
-                  </div>
-
+              <button
+                type="button"
+                onClick={() => setActiveTab('editor')}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'editor' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                  color: activeTab === 'editor' ? '#ffffff' : '#94a3b8',
+                  fontSize: '0.84rem',
+                  fontWeight: activeTab === 'editor' ? 700 : 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: activeTab === 'editor' ? '0 1px 4px rgba(0, 0, 0, 0.3)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>📝</span>
+                <span>Edit Teks & Waktu</span>
+                {cues.length > 0 && (
                   <span
                     style={{
-                      fontSize: '0.74rem',
+                      fontSize: '0.7rem',
+                      padding: '1px 6px',
+                      borderRadius: '10px',
+                      backgroundColor: 'rgba(99, 102, 241, 0.4)',
+                      color: '#e0e7ff',
                       fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: '6px',
-                      backgroundColor: (config.timeOffset || 0) === 0 ? 'rgba(148, 163, 184, 0.2)' : 'rgba(99, 102, 241, 0.25)',
-                      color: (config.timeOffset || 0) === 0 ? '#94a3b8' : '#818cf8',
                     }}
                   >
-                    {(config.timeOffset || 0) === 0
-                      ? 'Sinkron (0s)'
-                      : `${(config.timeOffset || 0) > 0 ? '+' : ''}${(config.timeOffset || 0).toFixed(1)}s (${(config.timeOffset || 0) > 0 ? 'Ditunda' : 'Dimajukan'})`}
+                    {cues.length}
                   </span>
-                </div>
-              </div>
-
-              {/* Slider */}
-              <div style={{ marginBottom: '10px' }}>
-                <input
-                  type="range"
-                  min="-30"
-                  max="30"
-                  step="0.1"
-                  value={config.timeOffset || 0}
-                  onChange={(e) => setConfig((prev) => ({ ...prev, timeOffset: parseFloat(e.target.value) }))}
-                  style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer' }}
-                />
-                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
-                  <span>⏪ -30s (Maju / Earlier)</span>
-                  <span>0s</span>
-                  <span>⏩ +30s (Mundur / Delayed)</span>
-                </div>
-              </div>
-
-              {/* Quick Stepper Buttons */}
-              <div style={{ display: 'flex', gap: '5px', flexWrap: 'wrap', justifyContent: 'center' }}>
-                <button
-                  type="button"
-                  title="Majukan subtitle 5 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 5).toFixed(1))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  -5s
-                </button>
-                <button
-                  type="button"
-                  title="Majukan subtitle 1 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 1).toFixed(1))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  -1s
-                </button>
-                <button
-                  type="button"
-                  title="Majukan subtitle 0.2 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 0.2).toFixed(2))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  -0.2s
-                </button>
-                <button
-                  type="button"
-                  title="Reset kalibrasi ke 0 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: 0 }))}
-                  style={{
-                    padding: '4px 10px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.15)',
-                    backgroundColor: (config.timeOffset || 0) === 0 ? 'rgba(99, 102, 241, 0.35)' : 'rgba(15, 23, 42, 0.6)',
-                    color: '#ffffff',
-                    fontSize: '0.72rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                  }}
-                >
-                  Reset (0s)
-                </button>
-                <button
-                  type="button"
-                  title="Mundurkan subtitle 0.2 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 0.2).toFixed(2))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  +0.2s
-                </button>
-                <button
-                  type="button"
-                  title="Mundurkan subtitle 1 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 1).toFixed(1))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  +1s
-                </button>
-                <button
-                  type="button"
-                  title="Mundurkan subtitle 5 detik"
-                  onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 5).toFixed(1))) }))}
-                  style={{
-                    padding: '4px 8px',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(255, 255, 255, 0.1)',
-                    backgroundColor: 'rgba(15, 23, 42, 0.6)',
-                    color: '#e2e8f0',
-                    fontSize: '0.72rem',
-                    fontWeight: 600,
-                    cursor: 'pointer',
-                  }}
-                >
-                  +5s
-                </button>
-              </div>
-              <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '6px 0 0 0', textAlign: 'center', lineHeight: 1.3 }}>
-                💡 Gunakan <b>- (Maju)</b> jika teks terlambat muncul dari suara, atau <b>+ (Mundur)</b> jika teks muncul terlalu cepat. Anda juga bisa mengetikkan angka detik secara langsung.
-              </p>
+                )}
+              </button>
             </div>
+
+            {activeTab === 'styling' && (
+              <>
+                {/* 0. STT Engine Selector */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '14px',
+                    padding: '12px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px', flexWrap: 'wrap', gap: '6px' }}>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+                      Pilihan Engine Transkripsi (Speech-to-Text)
+                    </label>
+                    {hasExistingTranscription && cues.length > 0 ? (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 700,
+                          color: '#4ade80',
+                          backgroundColor: 'rgba(34, 197, 94, 0.15)',
+                          border: '1px solid rgba(34, 197, 94, 0.3)',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                      >
+                        ✓ Transkripsi Tersedia
+                      </span>
+                    ) : (
+                      <span
+                        style={{
+                          fontSize: '0.7rem',
+                          fontWeight: 600,
+                          color: '#facc15',
+                          backgroundColor: 'rgba(234, 179, 8, 0.12)',
+                          border: '1px solid rgba(234, 179, 8, 0.25)',
+                          padding: '2px 7px',
+                          borderRadius: '6px',
+                        }}
+                      >
+                        ⚠️ Belum Ditranskripsi
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                    {STT_ENGINE_OPTIONS.map((eng) => {
+                      const isSelected = (config.sttEngine || 'whisper') === eng.id;
+                      return (
+                        <button
+                          key={eng.id}
+                          type="button"
+                          disabled={isTranscribing}
+                          onClick={() => setConfig((prev) => ({ ...prev, sttEngine: eng.id }))}
+                          style={{
+                            padding: '10px',
+                            borderRadius: '10px',
+                            border: isSelected
+                              ? '2px solid #8b5cf6'
+                              : '1px solid rgba(255, 255, 255, 0.08)',
+                            backgroundColor: isSelected
+                              ? 'rgba(139, 92, 246, 0.18)'
+                              : 'rgba(30, 41, 59, 0.5)',
+                            textAlign: 'left',
+                            cursor: isTranscribing ? 'not-allowed' : 'pointer',
+                            opacity: isTranscribing && !isSelected ? 0.6 : 1,
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                              <span style={{ fontSize: '1rem' }}>{eng.icon}</span>
+                              <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f8fafc' }}>
+                                {eng.title}
+                              </span>
+                            </div>
+                          </div>
+                          <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '0 0 4px 0', lineHeight: 1.25 }}>
+                            {eng.desc}
+                          </p>
+                          <span
+                            style={{
+                              fontSize: '0.62rem',
+                              padding: '2px 6px',
+                              borderRadius: '4px',
+                              backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.06)',
+                              color: isSelected ? '#c084fc' : '#94a3b8',
+                              fontWeight: 600,
+                              display: 'inline-block',
+                            }}
+                          >
+                            {eng.badge}
+                          </span>
+                        </button>
+                      );
+                    })}
+                  </div>
+
+                  {/* Dedicated Transcription Preview Trigger Button */}
+                  <div style={{ marginTop: '10px' }}>
+                    <button
+                      id="run-stt-preview-btn"
+                      type="button"
+                      onClick={handleRunTranscription}
+                      disabled={isTranscribing || loadingCues}
+                      style={{
+                        width: '100%',
+                        padding: '9px 14px',
+                        borderRadius: '9px',
+                        border: '1px solid rgba(139, 92, 246, 0.45)',
+                        backgroundColor: isTranscribing ? 'rgba(139, 92, 246, 0.35)' : 'rgba(139, 92, 246, 0.2)',
+                        color: '#ffffff',
+                        fontSize: '0.82rem',
+                        fontWeight: 700,
+                        cursor: (isTranscribing || loadingCues) ? 'not-allowed' : 'pointer',
+                        opacity: (isTranscribing || loadingCues) ? 0.6 : 1,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: '7px',
+                        boxShadow: '0 2px 10px rgba(139, 92, 246, 0.2)',
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      {isTranscribing ? (
+                        <>
+                          <span className="auth-spinner" style={{ width: '14px', height: '14px' }} />
+                          <span>Sedang Mentranskripsikan Audio ({config.sttEngine === 'gemini' ? 'Gemini AI STT' : 'Local Whisper'})…</span>
+                        </>
+                      ) : cues.length > 0 ? (
+                        <>
+                          <span>🔄</span>
+                          <span>Transkripsikan Ulang ({config.sttEngine === 'gemini' ? 'Gemini AI STT' : 'Local Whisper'})</span>
+                        </>
+                      ) : (
+                        <>
+                          <span>⚡</span>
+                          <span>Mulai Transkripsi Audio ({config.sttEngine === 'gemini' ? 'Gemini AI STT' : 'Local Whisper'})</span>
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* 1. Preset Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
+                    Pilih Gaya Animasi Subtitle (Preset)
+                  </label>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(2, 1fr)',
+                      gap: '8px',
+                    }}
+                  >
+                    {PRESET_OPTIONS.map((preset) => {
+                      const isSelected = config.preset === preset.id;
+                      return (
+                        <button
+                          key={preset.id}
+                          type="button"
+                          onClick={() => handlePresetSelect(preset.id)}
+                          style={{
+                            padding: '10px 12px',
+                            borderRadius: '12px',
+                            border: isSelected
+                              ? '2px solid #6366f1'
+                              : '1px solid rgba(255, 255, 255, 0.08)',
+                            backgroundColor: isSelected
+                              ? 'rgba(99, 102, 241, 0.15)'
+                              : 'rgba(30, 41, 59, 0.6)',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '2px' }}>
+                            <span style={{ fontSize: '1rem' }}>{preset.icon}</span>
+                            <span style={{ fontSize: '0.84rem', fontWeight: 700, color: '#f8fafc' }}>
+                              {preset.title}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.7rem', color: '#94a3b8', margin: 0, lineHeight: 1.25 }}>
+                            {preset.desc}
+                          </p>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 2. Font Selector */}
+                <div>
+                  <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
+                    Pilih Font Tipografi
+                  </label>
+                  <div
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(3, 1fr)',
+                      gap: '8px',
+                    }}
+                  >
+                    {FONT_OPTIONS.map((font) => {
+                      const isSelected = (config.fontFamily || 'Montserrat') === font.id;
+                      return (
+                        <button
+                          key={font.id}
+                          type="button"
+                          onClick={() => setConfig((prev) => ({ ...prev, fontFamily: font.id }))}
+                          style={{
+                            padding: '8px 10px',
+                            borderRadius: '10px',
+                            border: isSelected
+                              ? '2px solid #6366f1'
+                              : '1px solid rgba(255, 255, 255, 0.08)',
+                            backgroundColor: isSelected
+                              ? 'rgba(99, 102, 241, 0.2)'
+                              : 'rgba(30, 41, 59, 0.5)',
+                            textAlign: 'left',
+                            cursor: 'pointer',
+                            transition: 'all 0.15s ease',
+                          }}
+                        >
+                          <div
+                            style={{
+                              fontFamily: `"${font.name}", sans-serif`,
+                              fontSize: '0.86rem',
+                              fontWeight: 700,
+                              color: isSelected ? '#a5b4fc' : '#f8fafc',
+                              whiteSpace: 'nowrap',
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                            }}
+                          >
+                            {font.name}
+                          </div>
+                          <div style={{ fontSize: '0.64rem', color: '#94a3b8', marginTop: '1px' }}>
+                            {font.desc}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* 3. Words per Page & Position */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  {/* Words per page */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+                        Kata per Tampilan Subtitle: <span style={{ color: '#818cf8', fontWeight: 700 }}>{wordsPerPage} kata</span>
+                      </label>
+                    </div>
+                    <div style={{ display: 'flex', gap: '6px' }}>
+                      {[1, 2, 3, 4, 5].map((count) => (
+                        <button
+                          key={count}
+                          type="button"
+                          onClick={() => handleWordsPerPageChange(count)}
+                          style={{
+                            flex: 1,
+                            padding: '6px',
+                            borderRadius: '8px',
+                            border: wordsPerPage === count ? '2px solid #6366f1' : '1px solid rgba(255,255,255,0.08)',
+                            backgroundColor: wordsPerPage === count ? 'rgba(99, 102, 241, 0.25)' : 'rgba(30, 41, 59, 0.6)',
+                            color: '#ffffff',
+                            fontSize: '0.78rem',
+                            fontWeight: 700,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          {count}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Position Y Slider */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+                        Posisi Vertikal Subtitle
+                      </label>
+                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
+                        {config.positionY ?? 75}% (dari atas)
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={40}
+                      max={90}
+                      value={config.positionY ?? 75}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, positionY: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer' }}
+                    />
+                  </div>
+                </div>
+
+                {/* 4. Color & Stroke Customizer */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '12px',
+                  }}
+                >
+                  {/* Highlight Color Palette */}
+                  {config.preset !== 'plain' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+                          Warna Highlight Kata Aktif
+                        </label>
+                        <span style={{ fontSize: '0.72rem', color: config.highlightColor || '#FFE600', fontWeight: 700 }}>
+                          {config.highlightColor || '#FFE600'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {COLOR_PALETTE.map((c) => (
+                          <button
+                            key={c.hex}
+                            type="button"
+                            title={c.label}
+                            onClick={() => setConfig((prev) => ({ ...prev, highlightColor: c.hex }))}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              backgroundColor: c.hex,
+                              border: config.highlightColor === c.hex ? '3px solid #ffffff' : '1px solid rgba(0,0,0,0.5)',
+                              cursor: 'pointer',
+                              transform: config.highlightColor === c.hex ? 'scale(1.15)' : 'scale(1)',
+                              transition: 'transform 0.1s ease',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Standard Plain Text Color Palette */}
+                  {config.preset === 'plain' && (
+                    <div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                        <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+                          Warna Teks Subtitle
+                        </label>
+                        <span style={{ fontSize: '0.72rem', color: config.textColor || '#FFFFFF', fontWeight: 700 }}>
+                          {config.textColor || '#FFFFFF'}
+                        </span>
+                      </div>
+                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                        {COLOR_PALETTE.map((c) => (
+                          <button
+                            key={c.hex}
+                            type="button"
+                            title={c.label}
+                            onClick={() => setConfig((prev) => ({ ...prev, textColor: c.hex }))}
+                            style={{
+                              width: '24px',
+                              height: '24px',
+                              borderRadius: '50%',
+                              backgroundColor: c.hex,
+                              border: config.textColor === c.hex ? '3px solid #6366f1' : '1px solid rgba(0,0,0,0.5)',
+                              cursor: 'pointer',
+                              transform: config.textColor === c.hex ? 'scale(1.15)' : 'scale(1)',
+                              transition: 'transform 0.1s ease',
+                            }}
+                          />
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Stroke / Outline Width Slider */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
+                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
+                        Tebal Outline Teks (Stroke)
+                      </label>
+                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
+                        {config.strokeWidth ?? 4}px
+                      </span>
+                    </div>
+                    <input
+                      type="range"
+                      min={0}
+                      max={12}
+                      value={config.strokeWidth ?? 4}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, strokeWidth: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer' }}
+                    />
+                  </div>
+                </div>
+
+                {/* 5. Timing Calibration Offset Slider */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                    border: '1px solid rgba(255, 255, 255, 0.06)',
+                    borderRadius: '14px',
+                    padding: '12px 14px',
+                  }}
+                >
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                    <div>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
+                        Kalibrasi Waktu Subtitle (Offset)
+                      </label>
+                      <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '2px 0 0 0' }}>
+                        Kompensasi jika suara dan teks subtitle tidak pas munculnya
+                      </p>
+                    </div>
+                    <span
+                      style={{
+                        fontSize: '0.85rem',
+                        fontWeight: 800,
+                        color: (config.timeOffset || 0) === 0 ? '#94a3b8' : (config.timeOffset || 0) > 0 ? '#4ade80' : '#f87171',
+                        backgroundColor: 'rgba(0, 0, 0, 0.3)',
+                        padding: '3px 8px',
+                        borderRadius: '6px',
+                      }}
+                    >
+                      {(config.timeOffset || 0) > 0 ? `+${(config.timeOffset || 0).toFixed(2)}s` : `${(config.timeOffset || 0).toFixed(2)}s`}
+                    </span>
+                  </div>
+
+                  {/* Range Slider -30.0s to +30.0s */}
+                  <input
+                    type="range"
+                    min={-30}
+                    max={30}
+                    step={0.1}
+                    value={config.timeOffset || 0}
+                    onChange={(e) => setConfig((prev) => ({ ...prev, timeOffset: Number(e.target.value) }))}
+                    style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer', marginBottom: '8px' }}
+                  />
+
+                  {/* Quick Precision Calibration Buttons */}
+                  <div style={{ display: 'flex', gap: '4px', justifyContent: 'center', flexWrap: 'wrap' }}>
+                    <button
+                      type="button"
+                      title="Majukan subtitle 5 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 5).toFixed(1))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -5s
+                    </button>
+                    <button
+                      type="button"
+                      title="Majukan subtitle 1 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 1).toFixed(1))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -1s
+                    </button>
+                    <button
+                      type="button"
+                      title="Majukan subtitle 0.2 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 0.2).toFixed(2))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      -0.2s
+                    </button>
+                    <button
+                      type="button"
+                      title="Kembalikan ke timing asli 0s"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: 0 }))}
+                      style={{
+                        padding: '4px 10px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(99, 102, 241, 0.3)',
+                        backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                        color: '#c7d2fe',
+                        fontSize: '0.72rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      Reset (0s)
+                    </button>
+                    <button
+                      type="button"
+                      title="Mundurkan subtitle 0.2 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 0.2).toFixed(2))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +0.2s
+                    </button>
+                    <button
+                      type="button"
+                      title="Mundurkan subtitle 1 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 1).toFixed(1))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +1s
+                    </button>
+                    <button
+                      type="button"
+                      title="Mundurkan subtitle 5 detik"
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 5).toFixed(1))) }))}
+                      style={{
+                        padding: '4px 8px',
+                        borderRadius: '6px',
+                        border: '1px solid rgba(255, 255, 255, 0.1)',
+                        backgroundColor: 'rgba(15, 23, 42, 0.6)',
+                        color: '#e2e8f0',
+                        fontSize: '0.72rem',
+                        fontWeight: 600,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      +5s
+                    </button>
+                  </div>
+                  <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '6px 0 0 0', textAlign: 'center', lineHeight: 1.3 }}>
+                    💡 Gunakan <b>- (Maju)</b> jika teks terlambat muncul dari suara, atau <b>+ (Mundur)</b> jika teks muncul terlalu cepat. Anda juga bisa mengetikkan angka detik secara langsung.
+                  </p>
+                </div>
+              </>
+            )}
+
+            {/* TAB 2: Interactive Text & Timing Editor */}
+            {activeTab === 'editor' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                {/* Header & Quick Action Bar */}
+                <div
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    flexWrap: 'wrap',
+                    gap: '8px',
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '12px',
+                    padding: '10px 14px',
+                  }}
+                >
+                  <div>
+                    <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f8fafc', display: 'block' }}>
+                      Editor Transkripsi Manual ({cues.length} Baris)
+                    </span>
+                    <span style={{ fontSize: '0.72rem', color: '#94a3b8' }}>
+                      Edit teks yang salah/kosong atau sesuaikan timing (Start/End) per baris
+                    </span>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleAddCue()}
+                    style={{
+                      padding: '6px 12px',
+                      borderRadius: '8px',
+                      border: '1px solid rgba(139, 92, 246, 0.4)',
+                      backgroundColor: 'rgba(139, 92, 246, 0.2)',
+                      color: '#ffffff',
+                      fontSize: '0.76rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '5px',
+                    }}
+                  >
+                    <span>+</span>
+                    <span>Tambah Baris</span>
+                  </button>
+                </div>
+
+                {/* List of Cues */}
+                {cues.length === 0 ? (
+                  <div
+                    style={{
+                      backgroundColor: 'rgba(15, 23, 42, 0.5)',
+                      border: '1px dashed rgba(255, 255, 255, 0.15)',
+                      borderRadius: '14px',
+                      padding: '30px 16px',
+                      textAlign: 'center',
+                      color: '#94a3b8',
+                    }}
+                  >
+                    <p style={{ fontSize: '0.85rem', fontWeight: 600, color: '#f8fafc', margin: '0 0 6px 0' }}>
+                      Belum Ada Teks Subtitle
+                    </p>
+                    <p style={{ fontSize: '0.76rem', margin: '0 0 12px 0' }}>
+                      Silakan buka tab &apos;Desain & Gaya&apos; dan jalankan transkripsi audio, atau buat baris subtitle manual.
+                    </p>
+                    <button
+                      type="button"
+                      onClick={() => handleAddCue()}
+                      style={{
+                        padding: '7px 14px',
+                        borderRadius: '8px',
+                        backgroundColor: '#6366f1',
+                        border: 'none',
+                        color: '#ffffff',
+                        fontSize: '0.78rem',
+                        fontWeight: 700,
+                        cursor: 'pointer',
+                      }}
+                    >
+                      + Tambah Baris Manual
+                    </button>
+                  </div>
+                ) : (
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                    {cues.map((cue, idx) => (
+                      <div
+                        key={cue.id || idx}
+                        style={{
+                          backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                          border: '1px solid rgba(255, 255, 255, 0.08)',
+                          borderRadius: '12px',
+                          padding: '12px',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '8px',
+                        }}
+                      >
+                        {/* Cue Header: Index, Time Range, Seek button, Delete button */}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                            <span
+                              style={{
+                                fontSize: '0.72rem',
+                                fontWeight: 800,
+                                color: '#a855f7',
+                                backgroundColor: 'rgba(168, 85, 247, 0.15)',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                              }}
+                            >
+                              #{idx + 1}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => handleSeekToCue(cue.start)}
+                              title="Putar video pada detik ini untuk mendengar kecocokan suara"
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(99, 102, 241, 0.4)',
+                                backgroundColor: 'rgba(99, 102, 241, 0.15)',
+                                color: '#c7d2fe',
+                                fontSize: '0.72rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                              }}
+                            >
+                              <span>▶ Dengar</span>
+                              <span>({cue.start.toFixed(2)}s - {cue.end.toFixed(2)}s)</span>
+                            </button>
+                          </div>
+
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                            <button
+                              type="button"
+                              onClick={() => handleAddCue(idx)}
+                              title="Sisipkan baris subtitle baru setelah baris ini"
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(255, 255, 255, 0.1)',
+                                backgroundColor: 'transparent',
+                                color: '#94a3b8',
+                                fontSize: '0.7rem',
+                                cursor: 'pointer',
+                              }}
+                            >
+                              + Sisip
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => handleDeleteCue(idx)}
+                              title="Hapus baris subtitle ini"
+                              style={{
+                                padding: '3px 8px',
+                                borderRadius: '6px',
+                                border: '1px solid rgba(239, 68, 68, 0.3)',
+                                backgroundColor: 'rgba(239, 68, 68, 0.1)',
+                                color: '#f87171',
+                                fontSize: '0.7rem',
+                                fontWeight: 600,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              🗑️ Hapus
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Timing Fine Tuning Controls */}
+                        <div
+                          style={{
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(2, 1fr)',
+                            gap: '8px',
+                            backgroundColor: 'rgba(0, 0, 0, 0.25)',
+                            padding: '8px',
+                            borderRadius: '8px',
+                          }}
+                        >
+                          {/* Start Time Controller */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                              <label style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>Mulai (Start)</label>
+                              <span style={{ fontSize: '0.68rem', color: '#cbd5e1', fontWeight: 700 }}>{cue.start.toFixed(2)}s</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '3px' }}>
+                              <button
+                                type="button"
+                                onClick={() => updateCueTiming(idx, 'start', cue.start - 0.1)}
+                                style={{ flex: 1, padding: '3px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', color: '#cbd5e1', fontSize: '0.68rem', cursor: 'pointer' }}
+                              >
+                                -0.1s
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateCueTiming(idx, 'start', cue.start + 0.1)}
+                                style={{ flex: 1, padding: '3px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', color: '#cbd5e1', fontSize: '0.68rem', cursor: 'pointer' }}
+                              >
+                                +0.1s
+                              </button>
+                            </div>
+                          </div>
+
+                          {/* End Time Controller */}
+                          <div>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '3px' }}>
+                              <label style={{ fontSize: '0.68rem', color: '#94a3b8', fontWeight: 600 }}>Selesai (End)</label>
+                              <span style={{ fontSize: '0.68rem', color: '#cbd5e1', fontWeight: 700 }}>{cue.end.toFixed(2)}s</span>
+                            </div>
+                            <div style={{ display: 'flex', gap: '3px' }}>
+                              <button
+                                type="button"
+                                onClick={() => updateCueTiming(idx, 'end', cue.end - 0.1)}
+                                style={{ flex: 1, padding: '3px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', color: '#cbd5e1', fontSize: '0.68rem', cursor: 'pointer' }}
+                              >
+                                -0.1s
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => updateCueTiming(idx, 'end', cue.end + 0.1)}
+                                style={{ flex: 1, padding: '3px', borderRadius: '4px', border: '1px solid rgba(255,255,255,0.08)', backgroundColor: 'rgba(255,255,255,0.04)', color: '#cbd5e1', fontSize: '0.68rem', cursor: 'pointer' }}
+                              >
+                                +0.1s
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* Text Input / Editable Box */}
+                        <div>
+                          <input
+                            type="text"
+                            value={cue.text}
+                            onChange={(e) => updateCueText(idx, e.target.value)}
+                            placeholder="Ketik teks subtitle untuk baris ini..."
+                            style={{
+                              width: '100%',
+                              padding: '8px 10px',
+                              borderRadius: '8px',
+                              border: '1px solid rgba(255, 255, 255, 0.12)',
+                              backgroundColor: 'rgba(15, 23, 42, 0.9)',
+                              color: '#f8fafc',
+                              fontSize: '0.84rem',
+                              fontWeight: 600,
+                              outline: 'none',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
 
             {exportError && (
               <div style={{ color: '#ef4444', fontSize: '0.8rem', backgroundColor: 'rgba(239, 68, 68, 0.1)', padding: '8px 12px', borderRadius: '8px' }}>
@@ -1077,7 +1614,8 @@ export function SubtitleStudioModal({
             id={`export-remotion-btn-${clipId}`}
             type="button"
             onClick={handleExport}
-            disabled={isExporting || loadingCues || cues.length === 0}
+            disabled={isExporting || loadingCues || isTranscribing || cues.length === 0}
+            title={cues.length === 0 ? 'Harap lakukan transkripsi audio terlebih dahulu' : 'Ekspor video bersubtitle'}
             style={{
               background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
               border: 'none',
@@ -1086,8 +1624,8 @@ export function SubtitleStudioModal({
               borderRadius: '10px',
               fontSize: '0.88rem',
               fontWeight: 700,
-              cursor: (isExporting || loadingCues || cues.length === 0) ? 'not-allowed' : 'pointer',
-              opacity: (isExporting || loadingCues || cues.length === 0) ? 0.6 : 1,
+              cursor: (isExporting || loadingCues || isTranscribing || cues.length === 0) ? 'not-allowed' : 'pointer',
+              opacity: (isExporting || loadingCues || isTranscribing || cues.length === 0) ? 0.6 : 1,
               display: 'flex',
               alignItems: 'center',
               gap: '8px',
@@ -1097,7 +1635,7 @@ export function SubtitleStudioModal({
             {isExporting ? (
               <>
                 <span className="auth-spinner" style={{ width: '14px', height: '14px' }} />
-                <span>Memproses Subtitle dengan Whisper AI…</span>
+                <span>Mengekspor Video Bersubtitle…</span>
               </>
             ) : (
               <>
@@ -1106,7 +1644,7 @@ export function SubtitleStudioModal({
                   <polyline points="7 10 12 15 17 10" />
                   <line x1="12" y1="15" x2="12" y2="3" />
                 </svg>
-                <span>✨ Proses Subtitle dengan Whisper AI</span>
+                <span>✨ Ekspor Video Subtitle ({config.sttEngine === 'gemini' ? 'Gemini AI' : 'Local Whisper'})</span>
               </>
             )}
           </button>

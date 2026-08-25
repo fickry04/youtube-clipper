@@ -575,7 +575,7 @@ export function VideoDetailManager({
                         : (subtitleJob.progress || 0) < 25
                           ? 'Checking 9:16 Video & Data…'
                           : (subtitleJob.progress || 0) < 45
-                            ? 'Extracting Word Timestamps (Whisper AI)…'
+                            ? 'Extracting Word Timestamps (AI)…'
                             : (subtitleJob.progress || 0) < 93
                               ? 'Rendering Subtitled Video (Remotion)…'
                               : 'Saving Subtitled Video Assets…'}
@@ -605,7 +605,7 @@ export function VideoDetailManager({
                       : (subtitleJob.progress || 0) < 25
                         ? 'Verifying 9:16 vertical video and loading clip transcript…'
                         : (subtitleJob.progress || 0) < 45
-                          ? 'Extracting word-level timestamps with Whisper & Gemini AI…'
+                          ? 'Extracting word-level timestamps from clip audio…'
                           : (subtitleJob.progress || 0) < 93
                             ? 'Rendering Remotion animated captions composition…'
                             : 'Saving Remotion subtitled video, SRT, and JSON cues…'}

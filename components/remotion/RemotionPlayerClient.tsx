@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { Player } from '@remotion/player';
+import { Player, type PlayerRef } from '@remotion/player';
 import { TikTokCaptions } from '@/remotion/compositions/TikTokCaptions';
 import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
 
@@ -12,6 +12,7 @@ interface RemotionPlayerClientProps {
   styleConfig: SubtitleStyleConfig;
   autoPlay?: boolean;
   loop?: boolean;
+  playerRef?: React.RefObject<PlayerRef | null>;
 }
 
 export const RemotionPlayerClient: React.FC<RemotionPlayerClientProps> = ({
@@ -21,6 +22,7 @@ export const RemotionPlayerClient: React.FC<RemotionPlayerClientProps> = ({
   styleConfig,
   autoPlay = false,
   loop = true,
+  playerRef,
 }) => {
   const fps = 30;
   const durationInFrames = Math.max(1, Math.round(durationInSeconds * fps));
@@ -42,6 +44,7 @@ export const RemotionPlayerClient: React.FC<RemotionPlayerClientProps> = ({
       }}
     >
       <Player
+        ref={playerRef}
         component={TikTokCaptions}
         inputProps={{
           videoSrc,

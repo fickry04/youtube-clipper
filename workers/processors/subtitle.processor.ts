@@ -16,9 +16,10 @@ import * as os from 'os';
 import prisma from '../../lib/prisma';
 import { getStorage, StorageKeys, LocalStorageService } from '../../lib/storage';
 import { transcribeClip } from '../../lib/whisper';
-import { cuesToSrt } from '../../lib/transcript/word-timestamps';
+import { cuesToSrt, groupWordsIntoCues } from '../../lib/transcript/word-timestamps';
 import { renderRemotionSubtitles } from '../../lib/remotion/render';
 import type { GenerateSubtitlePayload } from '../../lib/queue/jobs';
+import type { CaptionCue } from '../../remotion/types';
 
 // ---------------------------------------------------------------------------
 // Progress Helper
@@ -87,19 +88,56 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
 
         await setSubtitleProgress(jobId, job, 25);
 
-        // 3. Word-Level Timestamps Extraction with selected STT Engine
-        const selectedEngine = job.data.sttEngine || styleConfig?.sttEngine || 'whisper';
-        console.log(`[Subtitle Worker] Running ${selectedEngine.toUpperCase()} transcription for clip ${clipId}...`);
+        // 3. Resolve cues: Use existing calibrated cues from job payload / database if available
         const wordsPerPage = styleConfig?.wordsPerPage || 3;
-        const cues = await transcribeClip({
-            mediaPath: verticalPath,
-            clipDurationSeconds: clip.durationSeconds,
-            wordsPerPage,
-            contextHint: `${clip.title} — ${clip.summary}`,
-            fallbackSegments: segments,
-            clipStartSeconds: clip.startSeconds,
-            engine: selectedEngine,
-        });
+        let cues: CaptionCue[] = [];
+
+        // Check A: Cues provided directly in job payload (from the studio modal preview)
+        if (job.data.cues && Array.isArray(job.data.cues) && job.data.cues.length > 0) {
+            const allWords = job.data.cues.flatMap((c) => c.words || []);
+            if (allWords.length > 0) {
+                cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
+            } else {
+                cues = job.data.cues;
+            }
+            console.log(`[Subtitle Worker] Using ${cues.length} preview cues provided directly in job payload for clip ${clipId}.`);
+        }
+
+        // Check B: Cues saved previously in database
+        if (cues.length === 0) {
+            const jsonSub = await prisma.subtitle.findUnique({
+                where: { clipId_format: { clipId, format: 'json' } },
+            });
+            if (jsonSub?.content) {
+                try {
+                    const parsed = JSON.parse(jsonSub.content);
+                    if (Array.isArray(parsed.cues) && parsed.cues.length > 0) {
+                        const allWords = parsed.cues.flatMap((c: CaptionCue) => c.words || []);
+                        if (allWords.length > 0) {
+                            cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
+                        } else {
+                            cues = parsed.cues;
+                        }
+                        console.log(`[Subtitle Worker] Using ${cues.length} cached cues from database for clip ${clipId}.`);
+                    }
+                } catch { }
+            }
+        }
+
+        // Check C: If still no cues, run transcription as fallback
+        if (cues.length === 0) {
+            const selectedEngine = job.data.sttEngine || styleConfig?.sttEngine || 'whisper';
+            console.log(`[Subtitle Worker] No cached cues found. Running ${selectedEngine.toUpperCase()} transcription for clip ${clipId}...`);
+            cues = await transcribeClip({
+                mediaPath: verticalPath,
+                clipDurationSeconds: clip.durationSeconds,
+                wordsPerPage,
+                contextHint: `${clip.title} — ${clip.summary}`,
+                fallbackSegments: segments,
+                clipStartSeconds: clip.startSeconds,
+                engine: selectedEngine,
+            });
+        }
 
         if (cues.length === 0) {
             throw new Error('Gagal menghasilkan subtitle dari audio klip.');
