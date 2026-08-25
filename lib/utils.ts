@@ -88,12 +88,3 @@ export function parseTranscriptSegments(raw: unknown): TranscriptSegment[] {
   }
   return [];
 }
-
-export interface VideoInfo {
-  title: string;
-  duration_string: string;
-  duration_number: number;
-  thumbnail: string;
-  channel: string;
-  description?: string;
-}

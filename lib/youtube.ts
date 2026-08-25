@@ -1,7 +1,7 @@
 import { spawn } from 'child_process';
 import { existsSync } from 'fs';
 import * as path from 'path';
-import type { VideoInfo } from './utils';
+import type { YoutubeVideoMetadata } from './types';
 
 function getCookiesPath(): string | null {
   if (process.env.YTDLP_COOKIES_PATH && existsSync(process.env.YTDLP_COOKIES_PATH)) {
@@ -19,7 +19,7 @@ function getCookiesPath(): string | null {
  * 1. Uses YouTube oEmbed API for instant title & author fetching (no external binary needed).
  * 2. Uses yt-dlp safe child_process spawn to fetch duration, description, & high-res thumbnail.
  */
-export async function fetchYoutubeVideoInfo(youtubeUrl: string, youtubeId: string): Promise<VideoInfo> {
+export async function fetchYoutubeVideoInfo(youtubeUrl: string, youtubeId: string): Promise<YoutubeVideoMetadata> {
   let title = '';
   let channel = '';
   let thumbnail = `https://img.youtube.com/vi/${youtubeId}/hqdefault.jpg`;

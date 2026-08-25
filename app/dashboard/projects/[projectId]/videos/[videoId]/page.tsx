@@ -1,4 +1,3 @@
-import type { ComponentProps } from 'react';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
@@ -232,7 +231,7 @@ export default async function VideoDetailPage({
           Video Detail Manager (Handles transcript, viral clips, cutting)
       ========================================================= */}
       <VideoDetailManager
-        initialVideo={videoWithVertical as unknown as ComponentProps<typeof VideoDetailManager>['initialVideo']}
+        initialVideo={videoWithVertical}
         videoId={video.id}
       />
     </div>

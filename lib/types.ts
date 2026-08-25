@@ -79,3 +79,12 @@ export interface AnalyzeSuccessResponse {
 }
 
 export type AnalyzeResponse = AnalyzeSuccessResponse | ErrorResponse;
+
+export interface YoutubeVideoMetadata {
+  title: string;
+  duration_string: string;
+  duration_number: number;
+  thumbnail: string;
+  channel: string;
+  description?: string;
+}

@@ -17,7 +17,7 @@ export interface JobInfo {
   status: string;
   progress: number;
   error: string | null;
-  payload?: Record<string, unknown>;
+  payload?: unknown;
   createdAt: Date | string;
   completedAt: Date | string | null;
 }
@@ -58,7 +58,6 @@ export interface VideoInfo {
     id: string;
     name: string;
   };
-  assets: { id: string }[];
   transcript: {
     id: string;
     languageCode: string;
@@ -66,8 +65,6 @@ export interface VideoInfo {
   } | null;
   viralAnalysis: {
     id: string;
-    status: string;
-    rawAnalysis: string | null;
     overallSummary: string | null;
     clips: ClipInfo[];
   } | null;
