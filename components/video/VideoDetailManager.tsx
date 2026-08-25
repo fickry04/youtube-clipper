@@ -8,18 +8,20 @@ import { GenerateSubtitleButton } from './GenerateSubtitleButton';
 import { CropFaceButton } from './CropFaceButton';
 import { ExpandedPhoneModal } from './ExpandedPhoneModal';
 
-interface JobInfo {
+import type { TranscriptSegment } from '@/lib/types';
+
+export interface JobInfo {
   id: string;
   type: string;
   status: string;
   progress: number;
   error: string | null;
-  payload?: any;
+  payload?: Record<string, unknown>;
   createdAt: Date | string;
   completedAt: Date | string | null;
 }
 
-interface ClipInfo {
+export interface ClipInfo {
   id: string;
   rank: number;
   viralScore: number;
@@ -42,7 +44,7 @@ interface ClipInfo {
   hasVerticalSubtitled?: boolean;
 }
 
-interface VideoInfo {
+export interface VideoInfo {
   id: string;
   youtubeId: string;
   youtubeUrl: string;
@@ -59,11 +61,13 @@ interface VideoInfo {
   transcript: {
     id: string;
     languageCode: string;
-    segments: any[];
+    segments: TranscriptSegment[];
   } | null;
   viralAnalysis: {
     id: string;
-    overallSummary: string;
+    status: string;
+    rawAnalysis: string | null;
+    overallSummary: string | null;
     clips: ClipInfo[];
   } | null;
   jobs: JobInfo[];
@@ -90,11 +94,16 @@ export function VideoDetailManager({
   const [closingToastIds, setClosingToastIds] = useState<Record<string, boolean>>({});
 
   const jobsRef = useRef(jobs);
-  jobsRef.current = jobs;
-
-  // Sync state with server-side props updates
   useEffect(() => {
-    setJobs(initialVideo.jobs);
+    jobsRef.current = jobs;
+  }, [jobs]);
+
+  const prevInitialJobsRef = useRef(initialVideo.jobs);
+  useEffect(() => {
+    if (prevInitialJobsRef.current !== initialVideo.jobs) {
+      prevInitialJobsRef.current = initialVideo.jobs;
+      setJobs(initialVideo.jobs);
+    }
   }, [initialVideo.jobs]);
 
   // Find active jobs
@@ -143,21 +152,19 @@ export function VideoDetailManager({
   useEffect(() => {
     if (!isJobRunning) return;
 
-    let timer: ReturnType<typeof setInterval>;
-
     const pollJobs = async () => {
       try {
         const res = await fetch(`/api/videos/${videoId}`);
         const data = await res.json();
         if (data.success && data.video && data.video.jobs) {
-          const fetchedJobs = data.video.jobs;
+          const fetchedJobs: JobInfo[] = data.video.jobs;
 
           // Check if any previously running job completed or failed
           const wasRunning = jobsRef.current.some(
             (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
           );
           const nowRunning = fetchedJobs.some(
-            (j: any) => j.status === 'QUEUED' || j.status === 'PROCESSING'
+            (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
           );
 
           setJobs(fetchedJobs);
@@ -171,7 +178,7 @@ export function VideoDetailManager({
       }
     };
 
-    timer = setInterval(pollJobs, 2000);
+    const timer = setInterval(pollJobs, 2000);
     return () => clearInterval(timer);
   }, [isJobRunning, videoId, router]);
 
@@ -230,7 +237,9 @@ export function VideoDetailManager({
       document.querySelectorAll('video').forEach((v) => {
         try {
           (v as HTMLVideoElement).pause();
-        } catch (_) {}
+        } catch {
+          // ignore pause errors
+        }
       });
     }
     setExpandedPreviewClip(clip);
@@ -679,12 +688,13 @@ export function VideoDetailManager({
                 {/* Clips list */}
                 <div className="clips-list" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
                   {viralAnalysis.clips.map((clip) => {
+                    const cutPayload = cutJob?.payload as { clipIds?: string[]; clipId?: string } | undefined;
                     const isThisClipInCutJob =
                       cutJob &&
                       (cutJob.status === 'QUEUED' || cutJob.status === 'PROCESSING') &&
-                      (Array.isArray((cutJob.payload as any)?.clipIds)
-                        ? (cutJob.payload as any).clipIds.includes(clip.id)
-                        : (cutJob.payload as any)?.clipId === clip.id);
+                      (Array.isArray(cutPayload?.clipIds)
+                        ? cutPayload.clipIds.includes(clip.id)
+                        : cutPayload?.clipId === clip.id);
 
                     const isThisClipActive = activeClipAction === clip.id || Boolean(isThisClipInCutJob);
                     const isProcessing = clip.processingStatus === 'PROCESSING' || isThisClipActive;

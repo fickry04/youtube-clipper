@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 
 interface ExpandedPhoneModalProps {
@@ -22,6 +22,8 @@ interface ExpandedPhoneModalProps {
   onSubChange?: (clipId: string, isSubOn: boolean) => void;
 }
 
+const emptySubscribe = () => () => {};
+
 export function ExpandedPhoneModal({
   clip,
   initialViewMode = 'vertical',
@@ -30,7 +32,11 @@ export function ExpandedPhoneModal({
   onViewModeChange,
   onSubChange,
 }: ExpandedPhoneModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
   const [isVerticalView, setIsVerticalView] = useState<boolean>(
     clip.hasVertical ? initialViewMode === 'vertical' : false
   );
@@ -40,10 +46,6 @@ export function ExpandedPhoneModal({
     hasSubtitles ? initialSubOn : false
   );
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Handle ESC key to close modal, lock body scroll, and pause background videos
   useEffect(() => {
     // Immediately pause any video currently playing on the page
@@ -51,7 +53,9 @@ export function ExpandedPhoneModal({
       document.querySelectorAll('video').forEach((v) => {
         try {
           (v as HTMLVideoElement).pause();
-        } catch (_) {}
+        } catch {
+          // ignore pause error
+        }
       });
     }
 

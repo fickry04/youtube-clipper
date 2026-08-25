@@ -35,7 +35,15 @@ export async function fetchYoutubeVideoInfo(youtubeUrl: string, youtubeId: strin
   // 2. yt-dlp safe child process for duration, description, etc.
   try {
     const ytdlpBin = process.env.YTDLP_PATH ?? 'yt-dlp';
-    const ytdlpResult = await new Promise<any>((resolve, reject) => {
+    const ytdlpResult = await new Promise<{
+      duration?: number;
+      duration_string?: string;
+      title?: string;
+      uploader?: string;
+      channel?: string;
+      thumbnail?: string;
+      description?: string;
+    }>((resolve, reject) => {
       const child = spawn(
         /*turbopackIgnore: true*/ ytdlpBin,
         [

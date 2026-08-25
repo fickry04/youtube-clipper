@@ -7,12 +7,14 @@
 
 import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
-import { db } from '@/lib/prisma';
+import prisma from '@/lib/prisma';
 import { getStorage, StorageKeys, LocalStorageService } from '@/lib/storage';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import { cuesToSrt, generateWordLevelCues, groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
 import { transcribeClipLocally } from '@/lib/whisper';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
+import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
+import type { TranscriptSegment } from '@/lib/types';
 
 export async function GET(
   request: NextRequest,
@@ -28,11 +30,11 @@ export async function GET(
   const { id: clipId } = await params;
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') ?? 'cues';
-  const wordsPerPage = parseInt(searchParams.get('wordsPerPage') || '3', 10);
+  const wordsPerPage = parseInt(searchParams.get('wordsPerPage') ?? '3', 10);
 
   try {
     // Ownership check & load clip with transcript
-    const clip = await db.clip.findFirst({
+    const clip = await prisma.clip.findFirst({
       where: {
         id: clipId,
         viralAnalysis: {
@@ -40,6 +42,7 @@ export async function GET(
         },
       },
       include: {
+        subtitles: true,
         viralAnalysis: {
           include: {
             video: {
@@ -49,7 +52,6 @@ export async function GET(
             },
           },
         },
-        subtitles: true,
       },
     });
 
@@ -62,20 +64,20 @@ export async function GET(
 
     // 1. Check if there is saved Remotion metadata JSON
     const jsonSub = clip.subtitles.find((s) => s.format === 'json');
-    let savedCues: any[] | null = null;
-    let savedStyleConfig: any = null;
+    let savedCues: CaptionCue[] | null = null;
+    let savedStyleConfig: SubtitleStyleConfig | null = null;
 
     if (jsonSub && jsonSub.content) {
       try {
         const parsed = JSON.parse(jsonSub.content);
         if (Array.isArray(parsed.cues)) savedCues = parsed.cues;
         if (parsed.styleConfig) savedStyleConfig = parsed.styleConfig;
-      } catch {}
+      } catch { }
     }
 
     let cues = savedCues;
     if (savedCues && savedCues.length > 0) {
-      const allWords = savedCues.flatMap((c: any) => c.words || []);
+      const allWords = savedCues.flatMap((c: CaptionCue) => c.words || []);
       if (allWords.length > 0) {
         cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
       }
@@ -99,7 +101,16 @@ export async function GET(
       }
 
       const transcript = clip.viralAnalysis.video.transcript;
-      const rawSegments = (transcript?.segments as any[]) || [];
+      let rawSegments: TranscriptSegment[] = [];
+      if (transcript?.segments) {
+        if (typeof transcript.segments === 'string') {
+          try {
+            rawSegments = JSON.parse(transcript.segments);
+          } catch { }
+        } else if (Array.isArray(transcript.segments)) {
+          rawSegments = transcript.segments as unknown as TranscriptSegment[];
+        }
+      }
 
       if (mediaPath) {
         cues = await transcribeClipLocally({
@@ -121,7 +132,7 @@ export async function GET(
 
       // Cache the generated cues in database
       if (cues && cues.length > 0) {
-        await db.subtitle.upsert({
+        await prisma.subtitle.upsert({
           where: { clipId_format: { clipId, format: 'json' } },
           update: {
             content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
@@ -132,7 +143,7 @@ export async function GET(
             format: 'json',
             content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
           },
-        }).catch(() => {});
+        }).catch(() => { });
       }
     }
 
@@ -190,7 +201,7 @@ export async function POST(
   const { id: clipId } = await params;
 
   let aspectRatio: '16:9' | '9:16' | 'all' = '9:16';
-  let styleConfig: any = {};
+  let styleConfig: SubtitleStyleConfig | undefined = undefined;
   try {
     const body = await request.json().catch(() => ({}));
     if (body.aspectRatio) aspectRatio = body.aspectRatio;
@@ -199,7 +210,7 @@ export async function POST(
     // Ignore JSON parsing errors and use default
   }
 
-  const clip = await db.clip.findFirst({
+  const clip = await prisma.clip.findFirst({
     where: {
       id: clipId,
       viralAnalysis: {
@@ -239,13 +250,13 @@ export async function POST(
   try {
     const videoId = clip.viralAnalysis.videoId;
 
-    const job = await db.job.create({
+    const job = await prisma.job.create({
       data: {
         userId: session.user.id,
         videoId,
         type: 'GENERATE_SUBTITLE',
         status: 'QUEUED',
-        payload: { clipId, aspectRatio, styleConfig },
+        payload: JSON.stringify({ clipId, aspectRatio, styleConfig }),
       },
     });
 

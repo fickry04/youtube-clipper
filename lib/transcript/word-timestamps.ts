@@ -17,7 +17,7 @@ function calculateWordPhoneticWeight(word: string): { weight: number; pauseAfter
   const consonants = clean.length - vowels;
 
   // Base duration weight: vowels take longer to vocalize than consonants
-  let weight = vowels * 1.5 + consonants * 1.0 + 1.0;
+  const weight = vowels * 1.5 + consonants * 1.0 + 1.0;
 
   // Detect punctuation pauses
   let pauseAfter = 0;

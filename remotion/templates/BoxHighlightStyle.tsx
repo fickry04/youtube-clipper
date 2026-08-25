@@ -40,14 +40,12 @@ export const BoxHighlightStyle: React.FC<CaptionTemplateProps> = ({
         const isCurrentWord =
           currentTimeSec >= w.start && currentTimeSec <= w.end;
 
-        const isHighlighted = !config.disableHighlight && isCurrentWord;
-
         return (
           <span
             key={`${idx}-${w.word}`}
             style={{
               display: 'inline-block',
-              fontFamily: '"Poppins", "Inter", -apple-system, sans-serif',
+              fontFamily: `"${config.fontFamily || 'Poppins'}", "Inter", -apple-system, sans-serif`,
               fontWeight: 800,
               fontSize: `${fontSize}px`,
               lineHeight: 1.2,
@@ -55,12 +53,12 @@ export const BoxHighlightStyle: React.FC<CaptionTemplateProps> = ({
               textTransform: config.uppercase !== false ? 'uppercase' : 'none',
               padding: '4px 12px',
               borderRadius: '10px',
-              backgroundColor: isHighlighted ? highlightColor : 'rgba(0, 0, 0, 0.6)',
-              color: isHighlighted ? '#000000' : '#FFFFFF',
-              boxShadow: isHighlighted
+              backgroundColor: isCurrentWord ? highlightColor : 'rgba(0, 0, 0, 0.6)',
+              color: isCurrentWord ? '#000000' : '#FFFFFF',
+              boxShadow: isCurrentWord
                 ? `0 4px 20px ${highlightColor}99, 0 2px 8px rgba(0,0,0,0.8)`
                 : '0 2px 8px rgba(0,0,0,0.6)',
-              border: isHighlighted
+              border: isCurrentWord
                 ? `1px solid ${highlightColor}`
                 : '1px solid rgba(255, 255, 255, 0.1)',
               transition: 'background-color 0.08s ease-out, color 0.08s ease-out',

@@ -1,10 +1,11 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
 import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp } from '@/remotion/types';
 import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
+import type { JobInfo } from '@/components/video/VideoDetailManager';
 
 interface SubtitleStudioModalProps {
   clipId: string;
@@ -12,8 +13,10 @@ interface SubtitleStudioModalProps {
   clipRank: number;
   durationSeconds: number;
   onClose: () => void;
-  onExportStarted?: (job: any) => void;
+  onExportStarted?: (job: JobInfo) => void;
 }
+
+const emptySubscribe = () => () => {};
 
 const PRESET_OPTIONS: Array<{
   id: SubtitlePreset;
@@ -22,79 +25,90 @@ const PRESET_OPTIONS: Array<{
   icon: string;
   defaultColor: string;
 }> = [
-  {
-    id: 'plain',
-    title: 'Standard Plain',
-    desc: 'Subtitle polos seragam tanpa highlight per kata, rapi & bersih',
-    icon: '📄',
-    defaultColor: '#FFFFFF',
-  },
-  {
-    id: 'clean',
-    title: 'Modern Clean',
-    desc: 'Ukuran font tetap seragam, highlight halus tanpa efek membesar',
-    icon: '💎',
-    defaultColor: '#FFE600',
-  },
-  {
-    id: 'box-highlight',
-    title: 'Marker Badge',
-    desc: 'Highlight kotak warna per kata ala podcast, tanpa perbesaran font',
-    icon: '🏷️',
-    defaultColor: '#FFE600',
-  },
-  {
-    id: 'cinema',
-    title: 'Cinema Netflix',
-    desc: 'Gaya film & Netflix klasik, bayangan tajam & bersih tanpa box/zoom',
-    icon: '🎬',
-    defaultColor: '#FFE600',
-  },
-  {
-    id: 'underline',
-    title: 'Neon Underline',
-    desc: 'Garis bawah neon menyala pada kata aktif, font ukuran konstan',
-    icon: '⚡',
-    defaultColor: '#00FFCC',
-  },
-  {
-    id: 'minimalist',
-    title: 'Minimalist Clean',
-    desc: 'Tipografi modern elegan dengan container blur glassmorphism',
-    icon: '✨',
-    defaultColor: '#38bdf8',
-  },
-  {
-    id: 'karaoke',
-    title: 'Karaoke Wave',
-    desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
-    icon: '🎤',
-    defaultColor: '#00FFCC',
-  },
-  {
-    id: 'hormozi',
-    title: 'Hormozi Pop',
-    desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
-    icon: '💥',
-    defaultColor: '#FFE600',
-  },
-  {
-    id: 'beast',
-    title: 'Beast Impact',
-    desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
-    icon: '🔥',
-    defaultColor: '#FF3366',
-  },
+    {
+      id: 'plain',
+      title: 'Standard Plain',
+      desc: 'Subtitle polos seragam tanpa highlight per kata, rapi & bersih',
+      icon: '📄',
+      defaultColor: '#FFFFFF',
+    },
+    {
+      id: 'clean',
+      title: 'Modern Clean',
+      desc: 'Ukuran font tetap seragam, highlight halus tanpa efek membesar',
+      icon: '💎',
+      defaultColor: '#FFE600',
+    },
+    {
+      id: 'box-highlight',
+      title: 'Marker Badge',
+      desc: 'Highlight kotak warna per kata ala podcast, tanpa perbesaran font',
+      icon: '🏷️',
+      defaultColor: '#FFE600',
+    },
+    {
+      id: 'cinema',
+      title: 'Cinema Netflix',
+      desc: 'Gaya film & Netflix klasik, bayangan tajam & bersih tanpa box/zoom',
+      icon: '🎬',
+      defaultColor: '#FFE600',
+    },
+    {
+      id: 'underline',
+      title: 'Neon Underline',
+      desc: 'Garis bawah neon menyala pada kata aktif, font ukuran konstan',
+      icon: '⚡',
+      defaultColor: '#00FFCC',
+    },
+    {
+      id: 'minimalist',
+      title: 'Minimalist Clean',
+      desc: 'Tipografi modern elegan dengan container blur glassmorphism',
+      icon: '✨',
+      defaultColor: '#38bdf8',
+    },
+    {
+      id: 'karaoke',
+      title: 'Karaoke Wave',
+      desc: 'Efek fluid fill menyala mengikuti alur pengucapan kata',
+      icon: '🎤',
+      defaultColor: '#00FFCC',
+    },
+    {
+      id: 'hormozi',
+      title: 'Hormozi Pop',
+      desc: 'Bouncy pop-up per kata dengan highlight neon & border tegas',
+      icon: '💥',
+      defaultColor: '#FFE600',
+    },
+    {
+      id: 'beast',
+      title: 'Beast Impact',
+      desc: 'Teks ekstra tebal, miring dinamis & kontras tinggi',
+      icon: '🔥',
+      defaultColor: '#FF3366',
+    },
+  ];
+
+const FONT_OPTIONS = [
+  { id: 'Montserrat', name: 'Montserrat', desc: 'Modern Bold' },
+  { id: 'Inter', name: 'Inter', desc: 'Clean Tech' },
+  { id: 'Poppins', name: 'Poppins', desc: 'Geometric' },
+  { id: 'Impact', name: 'Impact', desc: 'Ultra Punchy' },
+  { id: 'Roboto', name: 'Roboto', desc: 'Smooth' },
+  { id: 'Arial', name: 'Arial', desc: 'Classic' },
 ];
 
 const COLOR_PALETTE = [
+  { label: 'Pure White', hex: '#FFFFFF' },
   { label: 'Neon Yellow', hex: '#FFE600' },
   { label: 'Neon Green', hex: '#00FF66' },
   { label: 'Cyan Glow', hex: '#00FFCC' },
   { label: 'Sky Blue', hex: '#38bdf8' },
+  { label: 'Soft Gold', hex: '#FCD34D' },
   { label: 'Hot Pink', hex: '#FF3366' },
   { label: 'Flame Orange', hex: '#FF6600' },
-  { label: 'Pure White', hex: '#FFFFFF' },
+  { label: 'Lilac Purple', hex: '#C084FC' },
 ];
 
 export function SubtitleStudioModal({
@@ -105,7 +119,12 @@ export function SubtitleStudioModal({
   onClose,
   onExportStarted,
 }: SubtitleStudioModalProps) {
-  const [mounted, setMounted] = useState(false);
+  const mounted = useSyncExternalStore(
+    emptySubscribe,
+    () => true,
+    () => false
+  );
+
   const [rawWords, setRawWords] = useState<WordTimestamp[]>([]);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [loadingCues, setLoadingCues] = useState(true);
@@ -113,67 +132,65 @@ export function SubtitleStudioModal({
 
   const [wordsPerPage, setWordsPerPage] = useState<number>(3);
   const [config, setConfig] = useState<SubtitleStyleConfig>({
-    preset: 'clean',
-    fontSize: 50,
+    preset: 'plain',
+    fontFamily: 'Montserrat',
+    fontSize: 48,
     positionY: 75,
-    highlightColor: '#FFE600',
+    highlightColor: '#FFFFFF',
     textColor: '#FFFFFF',
     strokeColor: '#000000',
     strokeWidth: 4,
     uppercase: true,
     wordsPerPage: 3,
     timeOffset: 0,
-    disableHighlight: false,
   });
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
 
-  useEffect(() => {
-    setMounted(true);
-  }, []);
-
   // Fetch word-level cues from API on initial modal open
-  const fetchCues = useCallback(async () => {
-    setLoadingCues(true);
-    setCuesError(null);
-    try {
-      const res = await fetch(`/api/clips/${clipId}/subtitle?format=cues`);
-      const data = await res.json();
-      if (data.success && Array.isArray(data.cues)) {
-        const extractedWords: WordTimestamp[] = data.cues.flatMap((c: any) => c.words || []);
-        setRawWords(extractedWords);
-
-        let initialPageSize = 3;
-        if (data.styleConfig) {
-          setConfig((prev) => ({
-            ...prev,
-            ...data.styleConfig,
-          }));
-          if (data.styleConfig.wordsPerPage) {
-            initialPageSize = data.styleConfig.wordsPerPage;
-            setWordsPerPage(initialPageSize);
-          }
-        }
-
-        if (extractedWords.length > 0) {
-          setCues(groupWordsIntoCues(extractedWords, initialPageSize, durationSeconds));
-        } else {
-          setCues(data.cues);
-        }
-      } else {
-        setCuesError(data.error || 'Gagal memuat transkrip klip.');
-      }
-    } catch {
-      setCuesError('Gagal terhubung ke server untuk memuat transkrip.');
-    } finally {
-      setLoadingCues(false);
-    }
-  }, [clipId, durationSeconds]);
-
   useEffect(() => {
-    fetchCues();
-  }, [fetchCues]);
+    let ignore = false;
+    async function load() {
+      try {
+        const res = await fetch(`/api/clips/${clipId}/subtitle?format=cues`);
+        const data = await res.json();
+        if (ignore) return;
+        if (data.success && Array.isArray(data.cues)) {
+          const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
+          setRawWords(extractedWords);
+
+          let initialPageSize = 3;
+          if (data.styleConfig) {
+            setConfig((prev) => ({
+              ...prev,
+              ...data.styleConfig,
+            }));
+            if (data.styleConfig.wordsPerPage) {
+              initialPageSize = data.styleConfig.wordsPerPage;
+              setWordsPerPage(initialPageSize);
+            }
+          }
+
+          if (extractedWords.length > 0) {
+            setCues(groupWordsIntoCues(extractedWords, initialPageSize, durationSeconds));
+          } else {
+            setCues(data.cues);
+          }
+        } else {
+          setCuesError(data.error || 'Gagal memuat transkrip klip.');
+        }
+      } catch {
+        if (!ignore) setCuesError('Gagal terhubung ke server untuk memuat transkrip.');
+      } finally {
+        if (!ignore) setLoadingCues(false);
+      }
+    }
+    load();
+    return () => {
+      ignore = true;
+    };
+  }, [clipId, durationSeconds]);
 
   // Instant client-side words-per-page regrouping without network reload
   const handleWordsPerPageChange = (newCount: number) => {
@@ -197,8 +214,8 @@ export function SubtitleStudioModal({
     setConfig((prev) => ({
       ...prev,
       preset,
-      disableHighlight: preset === 'plain' ? true : preset === 'clean' ? false : prev.disableHighlight,
       highlightColor: found ? found.defaultColor : prev.highlightColor,
+      textColor: preset === 'plain' ? (prev.textColor || '#FFFFFF') : prev.textColor,
       fontSize:
         preset === 'beast'
           ? 58
@@ -477,85 +494,105 @@ export function SubtitleStudioModal({
               </div>
             </div>
 
-            {/* 2. Highlight Toggle & Color Palette */}
+            {/* 2. Font Family Selector */}
             <div>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
-                  Highlight Kata Aktif
+                  Pilihan Font Subtitle
                 </label>
-                <button
-                  type="button"
-                  onClick={() => setConfig((prev) => ({ ...prev, disableHighlight: !prev.disableHighlight }))}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '6px',
-                    padding: '3px 10px',
-                    borderRadius: '8px',
-                    border: config.disableHighlight
-                      ? '1px solid rgba(239, 68, 68, 0.4)'
-                      : '1px solid rgba(16, 185, 129, 0.4)',
-                    backgroundColor: config.disableHighlight
-                      ? 'rgba(239, 68, 68, 0.15)'
-                      : 'rgba(16, 185, 129, 0.15)',
-                    color: config.disableHighlight ? '#fca5a5' : '#6ee7b7',
-                    fontSize: '0.74rem',
-                    fontWeight: 700,
-                    cursor: 'pointer',
-                    transition: 'all 0.15s ease',
-                  }}
-                >
-                  <span>{config.disableHighlight ? '🚫 Tanpa Highlight' : '✨ Highlight Aktif'}</span>
-                </button>
+                <span style={{ fontSize: '0.74rem', color: '#818cf8', fontWeight: 700 }}>
+                  {config.fontFamily || 'Montserrat'}
+                </span>
               </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '6px' }}>
+                {FONT_OPTIONS.map((f) => {
+                  const isSelected = (config.fontFamily || 'Montserrat') === f.id;
+                  return (
+                    <button
+                      key={f.id}
+                      type="button"
+                      onClick={() => setConfig((prev) => ({ ...prev, fontFamily: f.id }))}
+                      style={{
+                        padding: '6px 8px',
+                        borderRadius: '10px',
+                        border: isSelected
+                          ? '2px solid #6366f1'
+                          : '1px solid rgba(255, 255, 255, 0.08)',
+                        backgroundColor: isSelected
+                          ? 'rgba(99, 102, 241, 0.2)'
+                          : 'rgba(30, 41, 59, 0.6)',
+                        color: isSelected ? '#ffffff' : '#cbd5e1',
+                        cursor: 'pointer',
+                        textAlign: 'center',
+                        transition: 'all 0.12s ease',
+                      }}
+                    >
+                      <div style={{ fontSize: '0.82rem', fontWeight: 800, fontFamily: `"${f.id}", sans-serif` }}>
+                        {f.name}
+                      </div>
+                      <div style={{ fontSize: '0.64rem', color: '#94a3b8', marginTop: '1px' }}>
+                        {f.desc}
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
 
-              {!config.disableHighlight ? (
-                <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                  {COLOR_PALETTE.map((c) => {
-                    const isSelected = config.highlightColor === c.hex;
-                    return (
-                      <button
-                        key={c.hex}
-                        type="button"
-                        onClick={() => setConfig((prev) => ({ ...prev, highlightColor: c.hex }))}
+            {/* 3. Color Palette */}
+            <div>
+              <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>
+                {config.preset === 'plain' ? 'Pilihan Warna Teks Subtitle' : 'Warna Highlight Kata Aktif'}
+              </label>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {COLOR_PALETTE.map((c) => {
+                  const isSelected = config.preset === 'plain'
+                    ? (config.textColor === c.hex || config.highlightColor === c.hex)
+                    : config.highlightColor === c.hex;
+
+                  return (
+                    <button
+                      key={c.hex}
+                      type="button"
+                      onClick={() =>
+                        setConfig((prev) => ({
+                          ...prev,
+                          highlightColor: c.hex,
+                          textColor: prev.preset === 'plain' ? c.hex : prev.textColor,
+                        }))
+                      }
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        padding: '5px 10px',
+                        borderRadius: '16px',
+                        border: isSelected
+                          ? '2px solid #ffffff'
+                          : '1px solid rgba(255, 255, 255, 0.12)',
+                        backgroundColor: 'rgba(30, 41, 59, 0.7)',
+                        cursor: 'pointer',
+                        transform: isSelected ? 'scale(1.05)' : 'scale(1)',
+                        transition: 'transform 0.1s ease',
+                      }}
+                    >
+                      <span
                         style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '5px 10px',
-                          borderRadius: '16px',
-                          border: isSelected
-                            ? '2px solid #ffffff'
-                            : '1px solid rgba(255, 255, 255, 0.12)',
-                          backgroundColor: 'rgba(30, 41, 59, 0.7)',
-                          cursor: 'pointer',
-                          transform: isSelected ? 'scale(1.05)' : 'scale(1)',
-                          transition: 'transform 0.1s ease',
+                          width: '12px',
+                          height: '12px',
+                          borderRadius: '50%',
+                          backgroundColor: c.hex,
+                          boxShadow: `0 0 8px ${c.hex}88`,
+                          border: c.hex === '#FFFFFF' ? '1px solid rgba(0,0,0,0.3)' : 'none',
                         }}
-                      >
-                        <span
-                          style={{
-                            width: '12px',
-                            height: '12px',
-                            borderRadius: '50%',
-                            backgroundColor: c.hex,
-                            boxShadow: `0 0 8px ${c.hex}88`,
-                          }}
-                        />
-                        <span style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: isSelected ? 700 : 500 }}>
-                          {c.label}
-                        </span>
-                      </button>
-                    );
-                  })}
-                </div>
-              ) : (
-                <div style={{ padding: '8px 12px', borderRadius: '10px', backgroundColor: 'rgba(30, 41, 59, 0.5)', border: '1px dashed rgba(255, 255, 255, 0.15)' }}>
-                  <p style={{ fontSize: '0.74rem', color: '#94a3b8', margin: 0 }}>
-                    ℹ️ Highlight per kata dinonaktifkan. Semua teks ditampilkan seragam tanpa animasi warna kata.
-                  </p>
-                </div>
-              )}
+                      />
+                      <span style={{ fontSize: '0.74rem', color: '#e2e8f0', fontWeight: isSelected ? 700 : 500 }}>
+                        {c.label}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
 
             {/* 3. Sliders: Font Size & Position Y */}

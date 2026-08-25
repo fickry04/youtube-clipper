@@ -26,6 +26,7 @@ export type SubtitlePreset =
 
 export interface SubtitleStyleConfig {
   preset: SubtitlePreset;
+  fontFamily?: string; // e.g. 'Montserrat', 'Inter', 'Poppins', 'Impact', 'Roboto', 'Arial'
   fontSize?: number; // e.g. 48 for 1080x1920 or scaled
   positionY?: number; // percentage from top (default 75%)
   highlightColor?: string; // default '#FFE600'
@@ -36,7 +37,6 @@ export interface SubtitleStyleConfig {
   wordsPerPage?: number; // default 3
   showEmoji?: boolean; // default true
   timeOffset?: number; // Timing calibration offset in seconds (e.g. -30.0 to +30.0, default 0)
-  disableHighlight?: boolean; // When true, all words are shown uniformly without per-word highlight
 }
 
 export interface TikTokCaptionsProps {

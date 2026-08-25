@@ -2,13 +2,14 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import type { JobInfo } from './VideoDetailManager';
 
 interface CropFaceButtonProps {
   clipId: string;
   hasClipAsset: boolean;
   hasVertical: boolean;
   isJobRunning?: boolean;
-  onJobStarted?: (newJob: any) => void;
+  onJobStarted?: (newJob: JobInfo) => void;
 }
 
 export function CropFaceButton({

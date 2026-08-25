@@ -1,5 +1,5 @@
 import React from 'react';
-import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { spring, useVideoConfig } from 'remotion';
 import type { CaptionCue, SubtitleStyleConfig } from '../types';
 
 interface CaptionTemplateProps {
@@ -13,7 +13,6 @@ export const BeastStyle: React.FC<CaptionTemplateProps> = ({
   currentTimeSec,
   config,
 }) => {
-  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   if (!currentCue || !currentCue.words || currentCue.words.length === 0) {
@@ -62,7 +61,7 @@ export const BeastStyle: React.FC<CaptionTemplateProps> = ({
             style={{
               display: 'inline-block',
               transform: `scale(${scale}) rotate(${rotationDeg}deg)`,
-              fontFamily: '"Impact", "Arial Black", sans-serif',
+              fontFamily: `"${config.fontFamily || 'Impact'}", "Arial Black", sans-serif`,
               fontWeight: 900,
               fontSize: `${fontSize}px`,
               lineHeight: 1.1,

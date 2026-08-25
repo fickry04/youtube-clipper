@@ -1,5 +1,5 @@
 import React from 'react';
-import { spring, useCurrentFrame, useVideoConfig } from 'remotion';
+import { spring, useVideoConfig } from 'remotion';
 import type { CaptionCue, SubtitleStyleConfig } from '../types';
 
 interface CaptionTemplateProps {
@@ -13,7 +13,6 @@ export const HormoziStyle: React.FC<CaptionTemplateProps> = ({
   currentTimeSec,
   config,
 }) => {
-  const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
 
   if (!currentCue || !currentCue.words || currentCue.words.length === 0) {
@@ -76,7 +75,7 @@ export const HormoziStyle: React.FC<CaptionTemplateProps> = ({
               transform: `scale(${scale})`,
               transformOrigin: 'center center',
               fontFamily:
-                '"Montserrat", "Arial Black", -apple-system, sans-serif',
+                `"${config.fontFamily || 'Montserrat'}", "Arial Black", -apple-system, sans-serif`,
               fontWeight: 900,
               fontSize: `${fontSize}px`,
               lineHeight: 1.15,

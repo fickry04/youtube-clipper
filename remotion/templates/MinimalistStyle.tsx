@@ -42,13 +42,11 @@ export const MinimalistStyle: React.FC<CaptionTemplateProps> = ({
         const isCurrentWord =
           currentTimeSec >= w.start && currentTimeSec <= w.end;
 
-        const color = config.disableHighlight
-          ? '#F8FAFC'
-          : isCurrentWord
-            ? highlightColor
-            : '#F8FAFC';
+        const color = isCurrentWord
+          ? highlightColor
+          : '#F8FAFC';
 
-        const textShadow = !config.disableHighlight && isCurrentWord
+        const textShadow = isCurrentWord
           ? `0 0 12px ${highlightColor}99`
           : 'none';
 
@@ -57,8 +55,8 @@ export const MinimalistStyle: React.FC<CaptionTemplateProps> = ({
             key={`${idx}-${w.word}`}
             style={{
               display: 'inline-block',
-              fontFamily: '"Inter", -apple-system, sans-serif',
-              fontWeight: (!config.disableHighlight && isCurrentWord) ? 800 : 600,
+              fontFamily: `"${config.fontFamily || 'Inter'}", -apple-system, sans-serif`,
+              fontWeight: isCurrentWord ? 800 : 600,
               fontSize: `${fontSize}px`,
               lineHeight: 1.25,
               color,

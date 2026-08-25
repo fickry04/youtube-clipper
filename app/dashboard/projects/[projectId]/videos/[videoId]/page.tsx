@@ -1,3 +1,4 @@
+import type { ComponentProps } from 'react';
 import { getSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import Link from 'next/link';
@@ -98,10 +99,6 @@ export default async function VideoDetailPage({
   const segments = (transcript?.segments as unknown as TranscriptSegment[]) ?? [];
   const hasTranscript = Array.isArray(segments) && segments.length > 0;
   const viralAnalysis = video.viralAnalysis;
-  const hasAnalysis = !!viralAnalysis && viralAnalysis.clips.length > 0;
-  const isJobRunning = video.jobs.some(
-    (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
-  );
 
   return (
     <div className="dash-page">
@@ -229,7 +226,7 @@ export default async function VideoDetailPage({
           Video Detail Manager (Handles transcript, viral clips, cutting)
       ========================================================= */}
       <VideoDetailManager
-        initialVideo={videoWithVertical as any}
+        initialVideo={videoWithVertical as unknown as ComponentProps<typeof VideoDetailManager>['initialVideo']}
         videoId={video.id}
       />
     </div>

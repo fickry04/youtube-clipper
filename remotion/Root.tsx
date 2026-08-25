@@ -1,7 +1,6 @@
 import React from 'react';
 import { Composition } from 'remotion';
 import { TikTokCaptions } from './compositions/TikTokCaptions';
-import type { TikTokCaptionsProps } from './types';
 
 export const RemotionRoot: React.FC = () => {
   const defaultDuration = 30;
@@ -9,7 +8,7 @@ export const RemotionRoot: React.FC = () => {
 
   return (
     <>
-      <Composition<any, TikTokCaptionsProps>
+      <Composition
         id="TikTokCaptions"
         component={TikTokCaptions}
         durationInFrames={defaultDuration * defaultFps}

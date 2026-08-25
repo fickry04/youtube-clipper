@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { SubtitleStudioModal } from '../remotion/SubtitleStudioModal';
+import type { JobInfo } from './VideoDetailManager';
 
 interface GenerateSubtitleButtonProps {
   clipId: string;
@@ -12,7 +13,7 @@ interface GenerateSubtitleButtonProps {
   hasClipAsset: boolean;
   hasVertical: boolean;
   isJobRunning?: boolean;
-  onJobStarted?: (newJob: any) => void;
+  onJobStarted?: (newJob: JobInfo) => void;
 }
 
 export function GenerateSubtitleButton({

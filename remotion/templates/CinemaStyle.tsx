@@ -41,15 +41,13 @@ export const CinemaStyle: React.FC<CaptionTemplateProps> = ({
           currentTimeSec >= w.start && currentTimeSec <= w.end;
         const isPastWord = currentTimeSec > w.end;
 
-        const color = config.disableHighlight
-          ? '#FFFFFF'
-          : isCurrentWord
-            ? highlightColor
-            : isPastWord
-              ? '#FFFFFF'
-              : 'rgba(255, 255, 255, 0.75)';
+        const color = isCurrentWord
+          ? highlightColor
+          : isPastWord
+            ? '#FFFFFF'
+            : 'rgba(255, 255, 255, 0.75)';
 
-        const textShadow = !config.disableHighlight && isCurrentWord
+        const textShadow = isCurrentWord
           ? `0 3px 12px rgba(0,0,0,0.95), 0 0 16px ${highlightColor}99`
           : '0 3px 12px rgba(0,0,0,0.95), 0 0 4px #000000';
 
@@ -58,7 +56,7 @@ export const CinemaStyle: React.FC<CaptionTemplateProps> = ({
             key={`${idx}-${w.word}`}
             style={{
               display: 'inline-block',
-              fontFamily: '"Helvetica Neue", "Arial", sans-serif',
+              fontFamily: `"${config.fontFamily || 'Helvetica Neue'}", "Arial", sans-serif`,
               fontWeight: 700,
               fontSize: `${fontSize}px`,
               lineHeight: 1.25,

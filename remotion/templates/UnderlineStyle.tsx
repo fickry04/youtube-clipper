@@ -48,19 +48,17 @@ export const UnderlineStyle: React.FC<CaptionTemplateProps> = ({
           currentTimeSec >= w.start && currentTimeSec <= w.end;
         const isPastWord = currentTimeSec > w.end;
 
-        const color = config.disableHighlight
-          ? '#FFFFFF'
-          : isCurrentWord
-            ? highlightColor
-            : isPastWord
-              ? '#FFFFFF'
-              : 'rgba(255, 255, 255, 0.6)';
+        const color = isCurrentWord
+          ? highlightColor
+          : isPastWord
+            ? '#FFFFFF'
+            : 'rgba(255, 255, 255, 0.6)';
 
-        const borderBottom = !config.disableHighlight && isCurrentWord
+        const borderBottom = isCurrentWord
           ? `4px solid ${highlightColor}`
           : '4px solid transparent';
 
-        const textShadow = !config.disableHighlight && isCurrentWord
+        const textShadow = isCurrentWord
           ? `0 0 16px ${highlightColor}99, 0 4px 12px rgba(0,0,0,0.9)`
           : '0 2px 8px rgba(0,0,0,0.8)';
 
@@ -69,7 +67,7 @@ export const UnderlineStyle: React.FC<CaptionTemplateProps> = ({
             key={`${idx}-${w.word}`}
             style={{
               display: 'inline-block',
-              fontFamily: '"Montserrat", "Inter", -apple-system, sans-serif',
+              fontFamily: `"${config.fontFamily || 'Montserrat'}", "Inter", -apple-system, sans-serif`,
               fontWeight: 800,
               fontSize: `${fontSize}px`,
               lineHeight: 1.2,

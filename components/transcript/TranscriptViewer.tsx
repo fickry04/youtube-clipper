@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef, useState, useCallback, useEffect } from 'react';
+import { useRef, useState, useCallback, useEffect, useMemo } from 'react';
 import type { TranscriptSegment } from '@/lib/types';
 import { formatTimestamp } from '@/lib/utils';
 
@@ -11,7 +11,6 @@ interface TranscriptViewerProps {
 }
 
 export function TranscriptViewer({ videoId, segments, languageCode }: TranscriptViewerProps) {
-  const [activeSegmentIndex, setActiveSegmentIndex] = useState<number | null>(null);
   const [currentTime, setCurrentTime] = useState(0);
   const [searchQuery, setSearchQuery] = useState('');
   const [isCopied, setIsCopied] = useState(false);
@@ -30,16 +29,14 @@ export function TranscriptViewer({ videoId, segments, languageCode }: Transcript
     : segments;
 
   // Find active segment based on current time (both in seconds)
-  useEffect(() => {
-    if (!segments.length) return;
-    let idx: number | null = null;
+  const activeSegmentIndex = useMemo(() => {
+    if (!segments.length) return null;
     for (let i = segments.length - 1; i >= 0; i--) {
       if (currentTime >= segments[i].offset) {
-        idx = i;
-        break;
+        return i;
       }
     }
-    setActiveSegmentIndex(idx);
+    return null;
   }, [currentTime, segments]);
 
   // Scroll active segment into view

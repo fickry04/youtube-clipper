@@ -2,12 +2,13 @@
 
 import { useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import type { JobInfo } from './VideoDetailManager';
 
 interface AnalyzeTriggerProps {
   videoId: string;
   hasTranscript: boolean;
   hasAnalysis?: boolean;
-  onJobStarted?: (newJob: any) => void;
+  onJobStarted?: (newJob: JobInfo) => void;
 }
 
 export function AnalyzeTrigger({ videoId, hasTranscript, hasAnalysis, onJobStarted }: AnalyzeTriggerProps) {

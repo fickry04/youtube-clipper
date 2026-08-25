@@ -23,9 +23,6 @@ export async function GET(
   // Verify ownership
   const video = await prisma.video.findFirst({
     where: { id: videoId, project: { userId: session.user.id } },
-    include: {
-      transcript: true,
-    },
   });
 
   if (!video) {
@@ -35,22 +32,10 @@ export async function GET(
     );
   }
 
-  // Return cached transcript from DB if available
-  if (video.transcript && !lang) {
-    const cachedSegments = (video.transcript.segments as unknown as TranscriptSegment[]) ?? [];
-    return Response.json({
-      success: true,
-      source: 'database',
-      videoId,
-      languageCode: video.transcript.languageCode,
-      segments: cachedSegments,
-    });
-  }
-
-  // Fetch fresh transcript from YouTube
   try {
-    const rawSegments = await fetchTranscript(video.youtubeId, {
-      ...(lang && { lang }),
+    // 1. Fetch transcript using youtube-transcript-plus
+    const rawSegments = await fetchTranscript(video.youtubeUrl, {
+      lang,
     });
 
     if (!rawSegments || rawSegments.length === 0) {
@@ -60,6 +45,7 @@ export async function GET(
       );
     }
 
+    // 2. Decode HTML entities and map to our schema
     const segments: TranscriptSegment[] = rawSegments.map((s) => ({
       text: decodeHtmlEntities(s.text),
       offset: s.offset,
@@ -72,13 +58,13 @@ export async function GET(
       where: { videoId },
       update: {
         languageCode: lang ?? 'default',
-        segments: segments as any,
+        segments: JSON.stringify(segments),
         updatedAt: new Date(),
       },
       create: {
         videoId,
         languageCode: lang ?? 'default',
-        segments: segments as any,
+        segments: JSON.stringify(segments),
       },
     });
 

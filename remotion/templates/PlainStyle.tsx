@@ -19,9 +19,11 @@ export const PlainStyle: React.FC<CaptionTemplateProps> = ({
     return null;
   }
 
-  const textColor = config.textColor || '#FFFFFF';
+  const textColor = config.textColor || config.highlightColor || '#FFFFFF';
   const fontSize = config.fontSize || 48;
   const strokeWidth = config.strokeWidth ?? 3;
+  const strokeColor = config.strokeColor || '#000000';
+  const fontFamily = config.fontFamily || 'Montserrat';
 
   return (
     <div
@@ -44,14 +46,14 @@ export const PlainStyle: React.FC<CaptionTemplateProps> = ({
     >
       <span
         style={{
-          fontFamily: '"Montserrat", "Inter", -apple-system, sans-serif',
+          fontFamily: `"${fontFamily}", "Montserrat", "Inter", -apple-system, sans-serif`,
           fontWeight: 800,
           fontSize: `${fontSize}px`,
           lineHeight: 1.25,
           color: textColor,
           textTransform: config.uppercase !== false ? 'uppercase' : 'none',
           letterSpacing: '0.5px',
-          WebkitTextStroke: `${strokeWidth}px rgba(0, 0, 0, 0.9)`,
+          WebkitTextStroke: `${strokeWidth}px ${strokeColor}`,
           paintOrder: 'stroke fill',
           textShadow: '0 3px 12px rgba(0,0,0,0.9), 0 0 4px #000000',
         }}
