@@ -11,7 +11,7 @@ import prisma from '@/lib/prisma';
 import { getStorage, StorageKeys, LocalStorageService } from '@/lib/storage';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import { cuesToSrt, generateWordLevelCues, groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
-import { transcribeClipLocally } from '@/lib/whisper';
+import { transcribeClip } from '@/lib/whisper';
 import type { GenerateSubtitlePayload } from '@/lib/queue/jobs';
 import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
 import type { TranscriptSegment } from '@/lib/types';
@@ -31,6 +31,8 @@ export async function GET(
   const { searchParams } = new URL(request.url);
   const format = searchParams.get('format') ?? 'cues';
   const wordsPerPage = parseInt(searchParams.get('wordsPerPage') ?? '3', 10);
+  const requestedEngine = (searchParams.get('engine') as 'whisper' | 'gemini') || undefined;
+  const forceRetranscribe = searchParams.get('retranscribe') === 'true';
 
   try {
     // Ownership check & load clip with transcript
@@ -76,14 +78,19 @@ export async function GET(
     }
 
     let cues = savedCues;
-    if (savedCues && savedCues.length > 0) {
+    const currentEngine = savedStyleConfig?.sttEngine || 'whisper';
+    const isEngineMismatch = requestedEngine && requestedEngine !== currentEngine;
+
+    if (!forceRetranscribe && !isEngineMismatch && savedCues && savedCues.length > 0) {
       const allWords = savedCues.flatMap((c: CaptionCue) => c.words || []);
       if (allWords.length > 0) {
         cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
       }
+    } else {
+      cues = null;
     }
 
-    // 2. If no saved cues exist yet, try running local Whisper on the clip file
+    // 2. If no valid cues exist or retranscribe requested, run STT with selected engine
     if (!cues || cues.length === 0) {
       const storage = getStorage();
       const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
@@ -112,14 +119,17 @@ export async function GET(
         }
       }
 
+      const selectedEngine: 'whisper' | 'gemini' = requestedEngine || savedStyleConfig?.sttEngine || 'whisper';
+
       if (mediaPath) {
-        cues = await transcribeClipLocally({
+        cues = await transcribeClip({
           mediaPath,
           clipDurationSeconds: clip.durationSeconds,
           wordsPerPage,
           contextHint: `${clip.title} — ${clip.summary}`,
           fallbackSegments: rawSegments,
           clipStartSeconds: clip.startSeconds,
+          engine: selectedEngine,
         });
       } else {
         cues = generateWordLevelCues(
@@ -130,21 +140,37 @@ export async function GET(
         );
       }
 
+      const updatedStyleConfig: SubtitleStyleConfig = {
+        preset: 'plain',
+        fontSize: 48,
+        positionY: 75,
+        highlightColor: '#FFFFFF',
+        textColor: '#FFFFFF',
+        strokeColor: '#000000',
+        strokeWidth: 4,
+        uppercase: true,
+        wordsPerPage,
+        timeOffset: 0,
+        ...savedStyleConfig,
+        sttEngine: selectedEngine,
+      };
+
       // Cache the generated cues in database
       if (cues && cues.length > 0) {
         await prisma.subtitle.upsert({
           where: { clipId_format: { clipId, format: 'json' } },
           update: {
-            content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
+            content: JSON.stringify({ cues, styleConfig: updatedStyleConfig, updatedAt: new Date().toISOString() }),
             updatedAt: new Date(),
           },
           create: {
             clipId,
             format: 'json',
-            content: JSON.stringify({ cues, styleConfig: savedStyleConfig, updatedAt: new Date().toISOString() }),
+            content: JSON.stringify({ cues, styleConfig: updatedStyleConfig, updatedAt: new Date().toISOString() }),
           },
-        }).catch(() => { });
+        });
       }
+      savedStyleConfig = updatedStyleConfig;
     }
 
     if (format === 'cues' || format === 'json') {

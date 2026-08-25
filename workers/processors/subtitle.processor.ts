@@ -15,7 +15,7 @@ import * as fs from 'fs/promises';
 import * as os from 'os';
 import prisma from '../../lib/prisma';
 import { getStorage, StorageKeys, LocalStorageService } from '../../lib/storage';
-import { transcribeClipLocally } from '../../lib/whisper';
+import { transcribeClip } from '../../lib/whisper';
 import { cuesToSrt } from '../../lib/transcript/word-timestamps';
 import { renderRemotionSubtitles } from '../../lib/remotion/render';
 import type { GenerateSubtitlePayload } from '../../lib/queue/jobs';
@@ -87,16 +87,18 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
 
         await setSubtitleProgress(jobId, job, 25);
 
-        // 3. Local Whisper Word-Level Timestamps Extraction & Gemini Refinement
-        console.log(`[Subtitle Worker] Running local Whisper & Gemini cleanup for clip ${clipId}...`);
+        // 3. Word-Level Timestamps Extraction with selected STT Engine
+        const selectedEngine = job.data.sttEngine || styleConfig?.sttEngine || 'whisper';
+        console.log(`[Subtitle Worker] Running ${selectedEngine.toUpperCase()} transcription for clip ${clipId}...`);
         const wordsPerPage = styleConfig?.wordsPerPage || 3;
-        const cues = await transcribeClipLocally({
+        const cues = await transcribeClip({
             mediaPath: verticalPath,
             clipDurationSeconds: clip.durationSeconds,
             wordsPerPage,
             contextHint: `${clip.title} — ${clip.summary}`,
             fallbackSegments: segments,
             clipStartSeconds: clip.startSeconds,
+            engine: selectedEngine,
         });
 
         if (cues.length === 0) {

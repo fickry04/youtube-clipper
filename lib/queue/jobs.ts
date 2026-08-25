@@ -70,6 +70,7 @@ export interface GenerateSubtitlePayload {
   clipId: string;
   aspectRatio?: '16:9' | '9:16' | 'all';
   styleConfig?: SubtitleStyleConfig;
+  sttEngine?: 'whisper' | 'gemini';
 }
 
 

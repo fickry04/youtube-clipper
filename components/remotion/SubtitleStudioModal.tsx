@@ -111,6 +111,29 @@ const COLOR_PALETTE = [
   { label: 'Lilac Purple', hex: '#C084FC' },
 ];
 
+const STT_ENGINE_OPTIONS: Array<{
+  id: 'whisper' | 'gemini';
+  title: string;
+  desc: string;
+  badge: string;
+  icon: string;
+}> = [
+  {
+    id: 'whisper',
+    title: 'Local Whisper',
+    desc: 'Whisper.cpp lokal + Gemini Refiner',
+    badge: 'Offline / CPU',
+    icon: '⚡',
+  },
+  {
+    id: 'gemini',
+    title: 'Gemini AI STT',
+    desc: 'Google Gemini Multimodal Audio langsung',
+    badge: 'Ultra Akurat & Cepat',
+    icon: '🤖',
+  },
+];
+
 export function SubtitleStudioModal({
   clipId,
   clipTitle,
@@ -128,6 +151,7 @@ export function SubtitleStudioModal({
   const [rawWords, setRawWords] = useState<WordTimestamp[]>([]);
   const [cues, setCues] = useState<CaptionCue[]>([]);
   const [loadingCues, setLoadingCues] = useState(true);
+  const [isChangingEngine, setIsChangingEngine] = useState(false);
   const [cuesError, setCuesError] = useState<string | null>(null);
 
   const [wordsPerPage, setWordsPerPage] = useState<number>(3);
@@ -143,10 +167,39 @@ export function SubtitleStudioModal({
     uppercase: true,
     wordsPerPage: 3,
     timeOffset: 0,
+    sttEngine: 'whisper',
   });
 
   const [isExporting, setIsExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
+
+  const handleEngineChange = async (newEngine: 'whisper' | 'gemini') => {
+    if ((config.sttEngine || 'whisper') === newEngine && cues.length > 0 && !isChangingEngine) return;
+    setConfig((prev) => ({ ...prev, sttEngine: newEngine }));
+    setIsChangingEngine(true);
+    setCuesError(null);
+    try {
+      const res = await fetch(
+        `/api/clips/${clipId}/subtitle?format=cues&engine=${newEngine}&retranscribe=true&wordsPerPage=${wordsPerPage}`
+      );
+      const data = await res.json();
+      if (data.success && Array.isArray(data.cues)) {
+        const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
+        setRawWords(extractedWords);
+        if (extractedWords.length > 0) {
+          setCues(groupWordsIntoCues(extractedWords, wordsPerPage, durationSeconds));
+        } else {
+          setCues(data.cues);
+        }
+      } else {
+        setCuesError(data.error || 'Gagal memproses ulang transkripsi dengan engine yang dipilih.');
+      }
+    } catch {
+      setCuesError('Gagal terhubung ke server untuk mengubah engine transkripsi.');
+    } finally {
+      setIsChangingEngine(false);
+    }
+  };
 
   // Fetch word-level cues from API on initial modal open
   useEffect(() => {
@@ -446,6 +499,80 @@ export function SubtitleStudioModal({
               paddingRight: '6px',
             }}
           >
+            {/* 0. STT Engine Selector */}
+            <div
+              style={{
+                backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                border: '1px solid rgba(255, 255, 255, 0.08)',
+                borderRadius: '14px',
+                padding: '12px',
+              }}
+            >
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+                <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', margin: 0 }}>
+                  Engine Transkripsi (Speech-to-Text)
+                </label>
+                {isChangingEngine && (
+                  <span style={{ fontSize: '0.72rem', color: '#818cf8', fontWeight: 600, display: 'flex', alignItems: 'center', gap: '4px' }}>
+                    <span style={{ display: 'inline-block', width: '6px', height: '6px', borderRadius: '50%', backgroundColor: '#818cf8', animation: 'pulse 1s infinite' }} />
+                    Mentranskripsikan audio...
+                  </span>
+                )}
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '8px' }}>
+                {STT_ENGINE_OPTIONS.map((eng) => {
+                  const isSelected = (config.sttEngine || 'whisper') === eng.id;
+                  return (
+                    <button
+                      key={eng.id}
+                      type="button"
+                      disabled={isChangingEngine}
+                      onClick={() => handleEngineChange(eng.id)}
+                      style={{
+                        padding: '10px',
+                        borderRadius: '10px',
+                        border: isSelected
+                          ? '2px solid #8b5cf6'
+                          : '1px solid rgba(255, 255, 255, 0.08)',
+                        backgroundColor: isSelected
+                          ? 'rgba(139, 92, 246, 0.18)'
+                          : 'rgba(30, 41, 59, 0.5)',
+                        textAlign: 'left',
+                        cursor: isChangingEngine ? 'not-allowed' : 'pointer',
+                        opacity: isChangingEngine && !isSelected ? 0.6 : 1,
+                        transition: 'all 0.15s ease',
+                      }}
+                    >
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '4px' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                          <span style={{ fontSize: '1rem' }}>{eng.icon}</span>
+                          <span style={{ fontSize: '0.82rem', fontWeight: 700, color: '#f8fafc' }}>
+                            {eng.title}
+                          </span>
+                        </div>
+                      </div>
+                      <p style={{ fontSize: '0.68rem', color: '#94a3b8', margin: '0 0 4px 0', lineHeight: 1.25 }}>
+                        {eng.desc}
+                      </p>
+                      <span
+                        style={{
+                          fontSize: '0.62rem',
+                          padding: '2px 6px',
+                          borderRadius: '4px',
+                          backgroundColor: isSelected ? 'rgba(139, 92, 246, 0.3)' : 'rgba(255, 255, 255, 0.06)',
+                          color: isSelected ? '#c084fc' : '#94a3b8',
+                          fontWeight: 600,
+                          display: 'inline-block',
+                        }}
+                      >
+                        {eng.badge}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
             {/* 1. Preset Selector */}
             <div>
               <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', marginBottom: '8px' }}>

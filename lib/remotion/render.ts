@@ -10,14 +10,14 @@ let bundlePromise: Promise<string> | null = null;
 
 /**
  * Get or create bundled Remotion Webpack output.
- * Caches the bundle in memory across job runs for high performance.
+ * Caches the bundle in memory for performance, but allows fresh bundles when needed.
  */
-export async function getRemotionBundle(): Promise<string> {
-  if (cachedBundleLocation) {
+export async function getRemotionBundle(forceFresh = false): Promise<string> {
+  if (!forceFresh && cachedBundleLocation && process.env.NODE_ENV === 'production') {
     return cachedBundleLocation;
   }
 
-  if (bundlePromise) {
+  if (!forceFresh && bundlePromise) {
     return bundlePromise;
   }
 

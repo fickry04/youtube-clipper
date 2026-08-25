@@ -58,7 +58,7 @@ export const KaraokeStyle: React.FC<CaptionTemplateProps> = ({
             style={{
               position: 'relative',
               display: 'inline-block',
-              fontFamily: '"Poppins", "Inter", -apple-system, sans-serif',
+              fontFamily: `"${config.fontFamily || 'Poppins'}", "Inter", -apple-system, sans-serif`,
               fontWeight: 800,
               fontSize: `${fontSize}px`,
               lineHeight: 1.2,

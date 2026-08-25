@@ -15,6 +15,7 @@ import { PlainStyle } from '../templates/PlainStyle';
 import { BoxHighlightStyle } from '../templates/BoxHighlightStyle';
 import { CinemaStyle } from '../templates/CinemaStyle';
 import { UnderlineStyle } from '../templates/UnderlineStyle';
+import { ensureFontLoaded } from '../fonts';
 
 const DEFAULT_CONFIG: SubtitleStyleConfig = {
   preset: 'clean',
@@ -41,6 +42,8 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
     ...DEFAULT_CONFIG,
     ...styleConfig,
   };
+
+  ensureFontLoaded(config.fontFamily);
 
   const timeOffset = config.timeOffset ?? 0;
   // Adjusted time for manual calibration (positive = delay/later, negative = advance/earlier)

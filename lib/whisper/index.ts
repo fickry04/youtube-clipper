@@ -5,6 +5,7 @@ import { nodewhisper } from 'nodejs-whisper';
 import type { CaptionCue, WordTimestamp } from '../../remotion/types';
 import { generateWordLevelCues, groupWordsIntoCues } from '../transcript/word-timestamps';
 import { refineTranscriptWithGemini } from '../transcript/gemini-refiner';
+import { transcribeWithGeminiAudio } from '../gemini/speech-to-text';
 
 export interface TranscribeClipOptions {
   mediaPath: string; // Absolute path to clip mp4 or wav
@@ -14,6 +15,20 @@ export interface TranscribeClipOptions {
   contextHint?: string;
   fallbackSegments?: Array<{ offset: number; duration: number; text: string }>;
   clipStartSeconds?: number;
+  engine?: 'whisper' | 'gemini';
+}
+
+/**
+ * Unified clip transcription router supporting both Local Whisper and Gemini AI Multimodal Audio.
+ */
+export async function transcribeClip(
+  opts: TranscribeClipOptions
+): Promise<CaptionCue[]> {
+  const engine = opts.engine || 'whisper';
+  if (engine === 'gemini') {
+    return transcribeWithGeminiAudio(opts);
+  }
+  return transcribeClipLocally(opts);
 }
 
 /**
