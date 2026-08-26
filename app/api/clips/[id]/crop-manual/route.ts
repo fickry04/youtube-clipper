@@ -32,6 +32,7 @@ export async function POST(
       },
     },
     include: {
+      viralAnalysis: { select: { videoId: true } },
       asset: { select: { id: true } },
     },
   });
@@ -52,7 +53,7 @@ export async function POST(
 
   try {
     const body = await request.json().catch(() => ({}));
-    
+
     // Support either 0.0-1.0 or 0-100% ranges
     let xCenterNorm = typeof body.xCenterNorm === 'number' ? body.xCenterNorm : (typeof body.xCenter === 'number' ? body.xCenter : 0.5);
     if (xCenterNorm > 1.0) xCenterNorm = xCenterNorm / 100;
@@ -85,6 +86,19 @@ export async function POST(
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-manual-crop-${clipId}-`));
     const croppedTmp = path.join(tmpDir, 'clip_vertical.mp4');
 
+    // Create a job record
+    const videoId = clip.viralAnalysis.videoId;
+    const job = await prisma.job.create({
+      data: {
+        userId: session.user.id,
+        videoId: videoId,
+        type: 'MANUAL_CROP',
+        status: 'PROCESSING',
+        startedAt: new Date(),
+        progress: 15
+      },
+    });
+
     try {
       await cropVerticalManual({
         videoPath: clipVideoPath,
@@ -97,8 +111,24 @@ export async function POST(
       // Save the 9:16 vertical video into storage
       const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
       await storage.save(verticalKey, croppedTmp);
-    } finally {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => {});
+
+      // Mark job as completed
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },
+      });
+
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Analysis failed.';
+
+      // Mark job as failed
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { status: 'FAILED', error: message, completedAt: new Date() },
+      });
+    }
+    finally {
+      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
     }
 
     return Response.json({

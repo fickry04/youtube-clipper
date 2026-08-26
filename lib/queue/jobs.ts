@@ -27,6 +27,7 @@ export const QUEUE_NAMES = {
   CLIP: 'clip',
   SUBTITLE: 'subtitle',
   FACE_DETECTION: 'face-detection',
+  MANUAL_CROP: 'manual-crop',
 };
 
 // Payloads for each job type

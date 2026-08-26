@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useId, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
 import type { JobInfo } from './VideoDetailManager';
 
@@ -26,9 +27,9 @@ export function CropFaceButton({
   const [showManualModal, setShowManualModal] = useState(false);
 
   // Manual crop parameters
-  const [xCenter, setXCenter] = useState<number>(50); // 0 to 100%
-  const [yCenter, setYCenter] = useState<number>(50); // 0 to 100%
-  const [scale, setScale] = useState<number>(1.0);    // 1.0x to 2.5x
+  const [xCenter, setXCenter] = useState<number>(50);
+  const [yCenter, setYCenter] = useState<number>(50);
+  const [scale, setScale] = useState<number>(1.0);
 
   const [isPlaying, setIsPlaying] = useState<boolean>(true);
   const [isMuted, setIsMuted] = useState<boolean>(true);
@@ -38,7 +39,6 @@ export function CropFaceButton({
   const ySliderId = useId();
   const scaleSliderId = useId();
 
-  // 1. Trigger AI Face Tracking Crop
   const handleFaceCrop = useCallback(async () => {
     setError('');
     setLoadingAi(true);
@@ -68,10 +68,23 @@ export function CropFaceButton({
     }
   }, [clipId, router, onJobStarted]);
 
-  // 2. Trigger Direct Manual Crop (no AI queue, fast FFmpeg execution)
   const handleManualCropSubmit = useCallback(async () => {
     setError('');
     setLoadingManual(true);
+
+    const tempJobId = `temp-analyze-${Date.now()}`;
+    if (onJobStarted) {
+      onJobStarted({
+        id: tempJobId,
+        type: 'MANUAL_CROP',
+        status: 'PROCESSING',
+        progress: 35,
+        error: null,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+      });
+    }
+
     try {
       const res = await fetch(`/api/clips/${clipId}/crop-manual`, {
         method: 'POST',
@@ -84,8 +97,31 @@ export function CropFaceButton({
       });
       const data = await res.json();
       if (!data.success) {
-        setError(data.error ?? 'Gagal melakukan manual crop 9:16.');
+        setError(data.error ?? 'Manual Crop failed.');
+        if (data.jobId && onJobStarted) {
+          onJobStarted({
+            id: data.jobId,
+            type: 'MANUAL_CROP',
+            status: 'FAILED',
+            progress: 100,
+            error: data.error ?? 'Manual Crop failed.',
+            createdAt: new Date().toISOString(),
+            completedAt: new Date().toISOString(),
+          });
+        }
         return;
+      }
+
+      if (data.jobId && onJobStarted) {
+        onJobStarted({
+          id: data.jobId,
+          type: 'MANUAL_CROP',
+          status: 'QUEUED',
+          progress: 5,
+          error: null,
+          createdAt: new Date().toISOString(),
+          completedAt: null,
+        });
       }
       setShowManualModal(false);
       router.refresh();
@@ -94,12 +130,12 @@ export function CropFaceButton({
     } finally {
       setLoadingManual(false);
     }
-  }, [clipId, xCenter, yCenter, scale, router]);
+  }, [clipId, xCenter, yCenter, scale, router, onJobStarted]);
 
   const togglePlayPause = () => {
     if (videoRef.current) {
       if (videoRef.current.paused) {
-        videoRef.current.play().catch(() => {});
+        videoRef.current.play().catch(() => { });
         setIsPlaying(true);
       } else {
         videoRef.current.pause();
@@ -115,11 +151,7 @@ export function CropFaceButton({
     }
   };
 
-  // Calculate 9:16 active window percentage over 16:9 video frame
-  // 16:9 frame width = 100%, height = 100%.
-  // In 16:9 coordinates, a 9:16 frame width is (9/16) / (16/9) = 81/256 ≈ 31.64% of video width.
-  // With scale factor S: crop box width % = (31.64 / S)%, height % = (100 / S)%.
-  const baseCropWidthPercent = (9 / 16) / (16 / 9) * 100; // ~31.64%
+  const baseCropWidthPercent = (9 / 16) / (16 / 9) * 100;
   const scaledWidthPercent = Math.max(10, Math.min(100, baseCropWidthPercent / scale));
   const scaledHeightPercent = Math.max(20, Math.min(100, 100 / scale));
   const cropLeftPercent = (100 - scaledWidthPercent) * (xCenter / 100);
@@ -233,10 +265,7 @@ export function CropFaceButton({
 
       {error && <p className="form-error" role="alert" style={{ marginTop: '4px', fontSize: '0.72rem', width: '100%' }}>{error}</p>}
 
-      {/* =========================================================
-          Manual Crop Modal with Live Video Background & 9:16 Overlay
-      ========================================================= */}
-      {showManualModal && (
+      {showManualModal && createPortal(
         <div
           className="manual-crop-modal-overlay"
           style={{
@@ -244,13 +273,13 @@ export function CropFaceButton({
             inset: 0,
             backgroundColor: 'rgba(3, 7, 18, 0.88)',
             backdropFilter: 'blur(12px)',
-            zIndex: 99999,
+            zIndex: 99,
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
             padding: '16px',
           }}
-          onClick={() => setShowManualModal(false)}
+          onClick={(e) => e.preventDefault()}
         >
           <div
             className="manual-crop-modal-dialog"
@@ -268,7 +297,7 @@ export function CropFaceButton({
               maxHeight: '92vh',
               overflowY: 'auto',
             }}
-            onClick={(e) => e.stopPropagation()}
+            onClick={(e) => e.preventDefault()}
           >
             {/* Header */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' }}>
@@ -309,7 +338,6 @@ export function CropFaceButton({
                 marginBottom: '16px',
               }}
             >
-              {/* Background 16:9 Video Playing */}
               <video
                 ref={videoRef}
                 src={`/api/clips/${clipId}/video`}
@@ -327,7 +355,6 @@ export function CropFaceButton({
                 }}
               />
 
-              {/* 9:16 Crop Overlay Mask & Framing Box */}
               <div
                 style={{
                   position: 'absolute',
@@ -335,7 +362,6 @@ export function CropFaceButton({
                   pointerEvents: 'none',
                 }}
               >
-                {/* Active 9:16 Focus Box with Darkened Outside Area (box-shadow) */}
                 <div
                   style={{
                     position: 'absolute',
@@ -352,7 +378,6 @@ export function CropFaceButton({
                     justifyContent: 'space-between',
                   }}
                 >
-                  {/* Top Badge */}
                   <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 6px' }}>
                     <span
                       style={{
@@ -381,7 +406,6 @@ export function CropFaceButton({
                     </span>
                   </div>
 
-                  {/* Rule of Thirds Center Grid Guides */}
                   <div style={{ width: '100%', height: '100%', position: 'relative' }}>
                     <div style={{ position: 'absolute', left: '33.3%', top: 0, bottom: 0, width: '1px', background: 'rgba(255,255,255,0.2)' }} />
                     <div style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, width: '1px', background: 'rgba(255,255,255,0.2)' }} />
@@ -389,7 +413,6 @@ export function CropFaceButton({
                     <div style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, height: '1px', background: 'rgba(255,255,255,0.2)' }} />
                   </div>
 
-                  {/* Bottom Center Indicator */}
                   <div style={{ display: 'flex', justifyContent: 'center', padding: '3px' }}>
                     <span style={{ fontSize: '0.58rem', color: 'rgba(255,255,255,0.85)', backgroundColor: 'rgba(0,0,0,0.6)', padding: '1px 4px', borderRadius: '3px' }}>
                       X: {xCenter}%
@@ -398,7 +421,6 @@ export function CropFaceButton({
                 </div>
               </div>
 
-              {/* Video Playback Quick Floating Toolbar */}
               <div
                 style={{
                   position: 'absolute',
@@ -450,7 +472,6 @@ export function CropFaceButton({
               </div>
             </div>
 
-            {/* Quick Position Presets */}
             <div style={{ marginBottom: '14px' }}>
               <div style={{ fontSize: '0.74rem', fontWeight: 600, color: '#94a3b8', marginBottom: '6px' }}>
                 Preset Cepat Posisi Horizontal
@@ -483,9 +504,7 @@ export function CropFaceButton({
               </div>
             </div>
 
-            {/* Sliders */}
             <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', marginBottom: '18px' }}>
-              {/* X Slider */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '3px' }}>
                   <label htmlFor={xSliderId} style={{ color: '#cbd5e1', fontWeight: 600 }}>Posisi Horizontal (X)</label>
@@ -502,7 +521,6 @@ export function CropFaceButton({
                 />
               </div>
 
-              {/* Y Slider */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '3px' }}>
                   <label htmlFor={ySliderId} style={{ color: '#cbd5e1', fontWeight: 600 }}>Posisi Vertikal (Y)</label>
@@ -519,7 +537,6 @@ export function CropFaceButton({
                 />
               </div>
 
-              {/* Scale / Zoom Slider */}
               <div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.74rem', marginBottom: '3px' }}>
                   <label htmlFor={scaleSliderId} style={{ color: '#cbd5e1', fontWeight: 600 }}>Zoom Scale</label>
@@ -544,7 +561,6 @@ export function CropFaceButton({
               </div>
             )}
 
-            {/* Action Buttons */}
             <div style={{ display: 'flex', gap: '10px', marginTop: 'auto' }}>
               <button
                 type="button"
@@ -568,7 +584,7 @@ export function CropFaceButton({
               <button
                 type="button"
                 onClick={handleManualCropSubmit}
-                disabled={loadingManual}
+                disabled={loadingAi || loadingManual || isJobRunning || !hasClipAsset}
                 style={{
                   flex: 2,
                   padding: '10px',
@@ -602,7 +618,8 @@ export function CropFaceButton({
               </button>
             </div>
           </div>
-        </div>
+        </div>,
+        document.body // 3. Render modal ini langsung ke dalam <body> html
       )}
     </div>
   );

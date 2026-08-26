@@ -110,6 +110,7 @@ export function VideoDetailManager({
   const faceJob = jobs.find((j) => j.type === 'FACE_DETECTION');
   const analyzeJob = jobs.find((j) => j.type === 'VIRAL_ANALYSIS');
   const subtitleJob = jobs.find((j) => j.type === 'GENERATE_SUBTITLE');
+  const manualCropJob = jobs.find((j) => j.type === 'MANUAL_CROP');
 
   const isJobRunning = jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
@@ -435,6 +436,100 @@ export function VideoDetailManager({
                   }}
                 >
                   {faceJob.status !== 'COMPLETED' && faceJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* Manual Crop Progress Toast */}
+        {manualCropJob && !dismissedToastIds[manualCropJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[manualCropJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Manual vertical crop progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {manualCropJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : manualCropJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-face">
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {manualCropJob.status === 'COMPLETED'
+                    ? 'Manual Crop Finished (9:16 Ready)'
+                    : manualCropJob.status === 'FAILED'
+                      ? 'ManualCrop Failed'
+                      : manualCropJob.status === 'QUEUED'
+                        ? 'Queued in Manual Crop Worker…'
+                        : (manualCropJob.progress || 0) < 99
+                          ? 'Cropping video'
+                          : 'Rendering 9:16 Vertical Video…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(manualCropJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {manualCropJob.status === 'COMPLETED'
+                    ? '9:16 vertical crop generated successfully.'
+                    : manualCropJob.status === 'FAILED'
+                      ? (manualCropJob.error || 'Failed to crop video')
+                      : (manualCropJob.progress || 0) < 99
+                        ? 'Cropping video...'
+                        : 'Encoding vertical video with FFmpeg…'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#c084fc' }}>
+                  {manualCropJob.status === 'COMPLETED' ? '100%' : `${manualCropJob.progress || 0}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: manualCropJob.status === 'COMPLETED' ? '100%' : `${manualCropJob.progress || 5}%`,
+                    background:
+                      manualCropJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : manualCropJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #6366f1, #a855f7)',
+                  }}
+                >
+                  {manualCropJob.status !== 'COMPLETED' && manualCropJob.status !== 'FAILED' && (
                     <div className="progress-fill-stripes" />
                   )}
                 </div>

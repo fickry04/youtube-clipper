@@ -551,7 +551,7 @@ export function RemotionStudioModal({
         justifyContent: 'center',
         padding: '16px',
       }}
-      onClick={onClose}
+      onClick={(e) => e.stopPropagation()}
     >
       <div
         className="remotion-studio-dialog"
