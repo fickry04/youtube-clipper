@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { SubtitleStudioModal } from '../remotion/SubtitleStudioModal';
+import { RemotionStudioModal } from '../remotion/RemotionStudioModal';
 import type { JobInfo } from './VideoDetailManager';
 
 interface GenerateSubtitleButtonProps {
@@ -34,7 +34,7 @@ export function GenerateSubtitleButton({
     ? 'Download klip terlebih dahulu'
     : !hasVertical
       ? 'Lakukan Auto-Crop 9:16 (Face AI) terlebih dahulu agar subtitle dapat di-burn ke video vertikal'
-      : 'Buka Remotion Subtitle Studio (Live Preview & Styling)';
+      : 'Buka Remotion Studio (Live Preview & Styling)';
 
   return (
     <>
@@ -51,13 +51,13 @@ export function GenerateSubtitleButton({
               onClick={() => setIsStudioOpen(true)}
               disabled={!hasClipAsset || !hasVertical || isJobRunning}
               className="clip-btn-reprocess"
-              title="Buka Remotion Subtitle Studio untuk ubah gaya / re-generate"
+              title="Buka Remotion Studio untuk ubah gaya / re-generate"
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
                 <path d="M12 20h9" />
                 <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
               </svg>
-              <span>Subtitle Studio</span>
+              <span>Remotion Studio</span>
             </button>
           </div>
         ) : (
@@ -79,13 +79,13 @@ export function GenerateSubtitleButton({
               <path d="M7 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2H7" />
               <path d="M15 10h2a2 2 0 0 1 2 2v0a2 2 0 0 1-2 2h-2" />
             </svg>
-            <span>{!hasVertical ? 'Subtitle Studio (Perlu Crop 9:16)' : '✨ Buka Subtitle Studio'}</span>
+            <span>{!hasVertical ? 'Remotion Studio (Perlu Crop 9:16)' : '✨ Buka Remotion Studio'}</span>
           </button>
         )}
       </div>
 
       {isStudioOpen && (
-        <SubtitleStudioModal
+        <RemotionStudioModal
           clipId={clipId}
           clipTitle={clipTitle}
           clipRank={clipRank}

@@ -8,7 +8,7 @@ import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp, Ti
 import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
 import type { JobInfo } from '@/components/video/VideoDetailManager';
 
-interface SubtitleStudioModalProps {
+interface RemotionStudioModalProps {
   clipId: string;
   clipTitle: string;
   clipRank: number;
@@ -17,7 +17,7 @@ interface SubtitleStudioModalProps {
   onExportStarted?: (job: JobInfo) => void;
 }
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 export const HOOK_TRANSITION_OPTIONS: Array<{
   id: HookTransitionType;
@@ -25,13 +25,13 @@ export const HOOK_TRANSITION_OPTIONS: Array<{
   desc: string;
   icon: string;
 }> = [
-  { id: 'fade', label: 'Smooth Fade', desc: 'Fade out transparan yang halus', icon: '🌫️' },
-  { id: 'slide-up', label: 'Slide Up', desc: 'Meluncur naik ke atas', icon: '⬆️' },
-  { id: 'slide-down', label: 'Slide Down', desc: 'Meluncur turun ke bawah', icon: '⬇️' },
-  { id: 'zoom-out', label: 'Zoom Out', desc: 'Menyusut ke tengah', icon: '🔍' },
-  { id: 'wipe-left', label: 'Wipe Left', desc: 'Tersapu ke sisi kiri', icon: '⬅️' },
-  { id: 'flash', label: 'Flash Glow', desc: 'Kilatan cahaya lalu menghilang', icon: '⚡' },
-];
+    { id: 'fade', label: 'Smooth Fade', desc: 'Fade out transparan yang halus', icon: '🌫️' },
+    { id: 'slide-up', label: 'Slide Up', desc: 'Meluncur naik ke atas', icon: '⬆️' },
+    { id: 'slide-down', label: 'Slide Down', desc: 'Meluncur turun ke bawah', icon: '⬇️' },
+    { id: 'zoom-out', label: 'Zoom Out', desc: 'Menyusut ke tengah', icon: '🔍' },
+    { id: 'wipe-left', label: 'Wipe Left', desc: 'Tersapu ke sisi kiri', icon: '⬅️' },
+    { id: 'flash', label: 'Flash Glow', desc: 'Kilatan cahaya lalu menghilang', icon: '⚡' },
+  ];
 
 export const TITLE_CARD_TEMPLATES: Array<{
   id: TitleCardTemplate;
@@ -41,55 +41,55 @@ export const TITLE_CARD_TEMPLATES: Array<{
   icon: string;
   defaultAccent: string;
 }> = [
-  {
-    id: 'bold-dark',
-    title: 'Bold Impact',
-    desc: 'Teks ekstra tebal, badge MUST WATCH & aksen kuning neon',
-    badge: 'Popular',
-    icon: '⚡',
-    defaultAccent: '#FFE600',
-  },
-  {
-    id: 'neon-glow',
-    title: 'Cyber Neon',
-    desc: 'Glow neon cyberpunk dengan glowing border box',
-    badge: 'Viral',
-    icon: '🔮',
-    defaultAccent: '#00FFCC',
-  },
-  {
-    id: 'cinema-slate',
-    title: 'Cinema Slate',
-    desc: 'Gaya film clapperboard 4K dengan letterbox bars',
-    badge: 'Classic',
-    icon: '🎬',
-    defaultAccent: '#FCD34D',
-  },
-  {
-    id: 'minimal-clean',
-    title: 'Minimalist Clean',
-    desc: 'Card frosted glass modern dengan tipografi elegan',
-    badge: 'Modern',
-    icon: '✨',
-    defaultAccent: '#38bdf8',
-  },
-  {
-    id: 'fire-impact',
-    title: 'Fire Beast',
-    desc: 'Slam zoom dinamis, teks miring MrBeast viral style',
-    badge: 'High CTR',
-    icon: '🔥',
-    defaultAccent: '#FF3366',
-  },
-  {
-    id: 'gradient-glass',
-    title: 'Aurora Glass',
-    desc: 'Gradient mesh aurora lembut dengan floating glass card',
-    badge: 'Aesthetic',
-    icon: '🌌',
-    defaultAccent: '#C084FC',
-  },
-];
+    {
+      id: 'bold-dark',
+      title: 'Bold Impact',
+      desc: 'Teks ekstra tebal, badge MUST WATCH & aksen kuning neon',
+      badge: 'Popular',
+      icon: '⚡',
+      defaultAccent: '#FFE600',
+    },
+    {
+      id: 'neon-glow',
+      title: 'Cyber Neon',
+      desc: 'Glow neon cyberpunk dengan glowing border box',
+      badge: 'Viral',
+      icon: '🔮',
+      defaultAccent: '#00FFCC',
+    },
+    {
+      id: 'cinema-slate',
+      title: 'Cinema Slate',
+      desc: 'Gaya film clapperboard 4K dengan letterbox bars',
+      badge: 'Classic',
+      icon: '🎬',
+      defaultAccent: '#FCD34D',
+    },
+    {
+      id: 'minimal-clean',
+      title: 'Minimalist Clean',
+      desc: 'Card frosted glass modern dengan tipografi elegan',
+      badge: 'Modern',
+      icon: '✨',
+      defaultAccent: '#38bdf8',
+    },
+    {
+      id: 'fire-impact',
+      title: 'Fire Beast',
+      desc: 'Slam zoom dinamis, teks miring MrBeast viral style',
+      badge: 'High CTR',
+      icon: '🔥',
+      defaultAccent: '#FF3366',
+    },
+    {
+      id: 'gradient-glass',
+      title: 'Aurora Glass',
+      desc: 'Gradient mesh aurora lembut dengan floating glass card',
+      badge: 'Aesthetic',
+      icon: '🌌',
+      defaultAccent: '#C084FC',
+    },
+  ];
 
 const PRESET_OPTIONS: Array<{
   id: SubtitlePreset;
@@ -191,30 +191,30 @@ const STT_ENGINE_OPTIONS: Array<{
   badge: string;
   icon: string;
 }> = [
-  {
-    id: 'whisper',
-    title: 'Local Whisper',
-    desc: 'Whisper.cpp lokal + Gemini Refiner',
-    badge: 'Offline / CPU',
-    icon: '⚡',
-  },
-  {
-    id: 'gemini',
-    title: 'Gemini AI STT',
-    desc: 'Google Gemini Multimodal Audio langsung',
-    badge: 'Ultra Akurat & Cepat',
-    icon: '🤖',
-  },
-];
+    {
+      id: 'whisper',
+      title: 'Local Whisper',
+      desc: 'Whisper.cpp lokal + Gemini Refiner',
+      badge: 'Offline / CPU',
+      icon: '⚡',
+    },
+    {
+      id: 'gemini',
+      title: 'Gemini AI STT',
+      desc: 'Google Gemini Multimodal Audio langsung',
+      badge: 'Ultra Akurat & Cepat',
+      icon: '🤖',
+    },
+  ];
 
-export function SubtitleStudioModal({
+export function RemotionStudioModal({
   clipId,
   clipTitle,
   clipRank,
   durationSeconds,
   onClose,
   onExportStarted,
-}: SubtitleStudioModalProps) {
+}: RemotionStudioModalProps) {
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -598,7 +598,7 @@ export function SubtitleStudioModal({
             </span>
             <div>
               <h2 style={{ fontSize: '1.08rem', fontWeight: 700, color: '#f8fafc', margin: 0 }}>
-                Remotion Subtitle Studio (9:16 Shorts)
+                Remotion Studio (9:16 Shorts)
               </h2>
               <p style={{ fontSize: '0.78rem', color: '#94a3b8', margin: '2px 0 0 0', maxWidth: '520px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                 {clipTitle}

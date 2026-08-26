@@ -565,18 +565,18 @@ export function VideoDetailManager({
 
                 <span className="sticky-toast-title">
                   {subtitleJob.status === 'COMPLETED'
-                    ? 'Remotion Subtitles Generated!'
+                    ? 'Remotion Animated Video Generated!'
                     : subtitleJob.status === 'FAILED'
-                      ? 'Subtitle Generation Failed'
+                      ? 'Remotion Generation Failed'
                       : subtitleJob.status === 'QUEUED'
-                        ? 'Queued in Subtitle Worker…'
+                        ? 'Queued in Remotion Worker…'
                         : (subtitleJob.progress || 0) < 25
                           ? 'Checking 9:16 Video & Data…'
                           : (subtitleJob.progress || 0) < 45
                             ? 'Extracting Word Timestamps (AI)…'
                             : (subtitleJob.progress || 0) < 93
                               ? 'Rendering Subtitled Video (Remotion)…'
-                              : 'Saving Subtitled Video Assets…'}
+                              : 'Saving Remotion Animated Video Assets…'}
                 </span>
               </div>
 
