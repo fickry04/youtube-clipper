@@ -89,7 +89,7 @@ export interface RenderRemotionSubtitleOptions {
   outputPath: string;
   durationSeconds: number;
   cues: CaptionCue[];
-  styleConfig?: Partial<SubtitleStyleConfig>;
+  styleConfig?: SubtitleStyleConfig;
   onProgress?: (progress: number) => void;
 }
 

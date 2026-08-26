@@ -172,6 +172,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({ config }) => {
             fontSize: '56px',
             fontWeight: 900,
             lineHeight: 1.15,
+            fontFamily: `"Montserrat", sans-serif`,
             textTransform: 'uppercase',
             letterSpacing: '-0.01em',
             textShadow: '0 4px 20px rgba(0, 0, 0, 0.95)',
@@ -188,6 +189,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({ config }) => {
               marginTop: '14px',
               color: '#cbd5e1',
               fontSize: '26px',
+              fontFamily: `"Montserrat", sans-serif`,
               fontWeight: 600,
               textShadow: '0 2px 8px rgba(0, 0, 0, 0.8)',
             }}
