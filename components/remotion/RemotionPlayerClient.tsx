@@ -25,7 +25,12 @@ export const RemotionPlayerClient: React.FC<RemotionPlayerClientProps> = ({
   playerRef,
 }) => {
   const fps = 30;
-  const durationInFrames = Math.max(1, Math.round(durationInSeconds * fps));
+  const titleCard = styleConfig?.titleCard;
+  const isTitleActive = Boolean(titleCard?.enabled && titleCard?.title?.trim());
+  const isCardMode = isTitleActive && (titleCard?.mode !== 'overlay');
+  const titleSec = isCardMode ? (titleCard?.durationSeconds || 2.5) : 0;
+  const totalDuration = durationInSeconds + titleSec;
+  const durationInFrames = Math.max(1, Math.round(totalDuration * fps));
 
   return (
     <div

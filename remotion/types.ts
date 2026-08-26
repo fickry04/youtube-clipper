@@ -24,6 +24,40 @@ export type SubtitlePreset =
   | 'karaoke'
   | 'minimalist';
 
+export type TitleCardTemplate =
+  | 'bold-dark'
+  | 'neon-glow'
+  | 'cinema-slate'
+  | 'minimal-clean'
+  | 'fire-impact'
+  | 'gradient-glass';
+
+export type HookDisplayMode = 'card' | 'overlay';
+
+export type HookTransitionType =
+  | 'fade'
+  | 'slide-up'
+  | 'slide-down'
+  | 'zoom-out'
+  | 'wipe-left'
+  | 'flash';
+
+export type HookOverlayPosition = 'top' | 'center' | 'bottom';
+
+export interface TitleCardConfig {
+  enabled: boolean;
+  mode?: HookDisplayMode;          // 'card' (standalone intro card) vs 'overlay' (floating title over video)
+  title: string;                  // Main hook headline
+  subtitle?: string;              // Optional subtext / author tag / CTA
+  durationSeconds: number;        // Duration in seconds (e.g. 1.0 - 5.0, default 2.5)
+  template: TitleCardTemplate;    // Style template
+  transition?: HookTransitionType;// Exit transition effect (default 'fade')
+  overlayPosition?: HookOverlayPosition; // Position on screen in overlay mode (default 'top')
+  textColor?: string;             // Main text color
+  accentColor?: string;           // Accent / highlight color
+  backgroundColor?: string;       // Background color override
+}
+
 export interface SubtitleStyleConfig {
   preset: SubtitlePreset;
   fontFamily?: string; // e.g. 'Montserrat', 'Inter', 'Poppins', 'Impact', 'Roboto', 'Arial'
@@ -38,6 +72,7 @@ export interface SubtitleStyleConfig {
   showEmoji?: boolean; // default true
   timeOffset?: number; // Timing calibration offset in seconds (e.g. -30.0 to +30.0, default 0)
   sttEngine?: 'whisper' | 'gemini'; // Transcription engine (default 'whisper')
+  titleCard?: TitleCardConfig; // Intro hook title card configuration
 }
 
 export interface TikTokCaptionsProps {
@@ -47,4 +82,5 @@ export interface TikTokCaptionsProps {
   fps?: number;
   cues: CaptionCue[];
   styleConfig?: Partial<SubtitleStyleConfig>;
+  titleCard?: TitleCardConfig;
 }

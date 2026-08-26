@@ -4,7 +4,7 @@ import { useState, useEffect, useRef, useSyncExternalStore } from 'react';
 import { createPortal } from 'react-dom';
 import type { PlayerRef } from '@remotion/player';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
-import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp } from '@/remotion/types';
+import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp, TitleCardConfig, TitleCardTemplate, HookTransitionType } from '@/remotion/types';
 import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
 import type { JobInfo } from '@/components/video/VideoDetailManager';
 
@@ -18,6 +18,78 @@ interface SubtitleStudioModalProps {
 }
 
 const emptySubscribe = () => () => {};
+
+export const HOOK_TRANSITION_OPTIONS: Array<{
+  id: HookTransitionType;
+  label: string;
+  desc: string;
+  icon: string;
+}> = [
+  { id: 'fade', label: 'Smooth Fade', desc: 'Fade out transparan yang halus', icon: '🌫️' },
+  { id: 'slide-up', label: 'Slide Up', desc: 'Meluncur naik ke atas', icon: '⬆️' },
+  { id: 'slide-down', label: 'Slide Down', desc: 'Meluncur turun ke bawah', icon: '⬇️' },
+  { id: 'zoom-out', label: 'Zoom Out', desc: 'Menyusut ke tengah', icon: '🔍' },
+  { id: 'wipe-left', label: 'Wipe Left', desc: 'Tersapu ke sisi kiri', icon: '⬅️' },
+  { id: 'flash', label: 'Flash Glow', desc: 'Kilatan cahaya lalu menghilang', icon: '⚡' },
+];
+
+export const TITLE_CARD_TEMPLATES: Array<{
+  id: TitleCardTemplate;
+  title: string;
+  desc: string;
+  badge: string;
+  icon: string;
+  defaultAccent: string;
+}> = [
+  {
+    id: 'bold-dark',
+    title: 'Bold Impact',
+    desc: 'Teks ekstra tebal, badge MUST WATCH & aksen kuning neon',
+    badge: 'Popular',
+    icon: '⚡',
+    defaultAccent: '#FFE600',
+  },
+  {
+    id: 'neon-glow',
+    title: 'Cyber Neon',
+    desc: 'Glow neon cyberpunk dengan glowing border box',
+    badge: 'Viral',
+    icon: '🔮',
+    defaultAccent: '#00FFCC',
+  },
+  {
+    id: 'cinema-slate',
+    title: 'Cinema Slate',
+    desc: 'Gaya film clapperboard 4K dengan letterbox bars',
+    badge: 'Classic',
+    icon: '🎬',
+    defaultAccent: '#FCD34D',
+  },
+  {
+    id: 'minimal-clean',
+    title: 'Minimalist Clean',
+    desc: 'Card frosted glass modern dengan tipografi elegan',
+    badge: 'Modern',
+    icon: '✨',
+    defaultAccent: '#38bdf8',
+  },
+  {
+    id: 'fire-impact',
+    title: 'Fire Beast',
+    desc: 'Slam zoom dinamis, teks miring MrBeast viral style',
+    badge: 'High CTR',
+    icon: '🔥',
+    defaultAccent: '#FF3366',
+  },
+  {
+    id: 'gradient-glass',
+    title: 'Aurora Glass',
+    desc: 'Gradient mesh aurora lembut dengan floating glass card',
+    badge: 'Aesthetic',
+    icon: '🌌',
+    defaultAccent: '#C084FC',
+  },
+];
 
 const PRESET_OPTIONS: Array<{
   id: SubtitlePreset;
@@ -155,11 +227,24 @@ export function SubtitleStudioModal({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [hasExistingTranscription, setHasExistingTranscription] = useState(false);
   const [cuesError, setCuesError] = useState<string | null>(null);
-  const [activeTab, setActiveTab] = useState<'styling' | 'editor'>('styling');
+  const [activeTab, setActiveTab] = useState<'styling' | 'titleCard' | 'editor'>('styling');
 
   const playerRef = useRef<PlayerRef | null>(null);
 
   const [wordsPerPage, setWordsPerPage] = useState<number>(3);
+  const [titleCardConfig, setTitleCardConfig] = useState<TitleCardConfig>({
+    enabled: false,
+    mode: 'card',
+    title: clipTitle || '',
+    subtitle: 'Tonton sampai habis 🔥',
+    durationSeconds: 2.5,
+    template: 'bold-dark',
+    transition: 'fade',
+    overlayPosition: 'top',
+    textColor: '#FFFFFF',
+    accentColor: '#FFE600',
+  });
+
   const [config, setConfig] = useState<SubtitleStyleConfig>({
     preset: 'plain',
     fontFamily: 'Montserrat',
@@ -332,6 +417,9 @@ export function SubtitleStudioModal({
               ...prev,
               ...data.styleConfig,
             }));
+            if (data.styleConfig.titleCard) {
+              setTitleCardConfig(data.styleConfig.titleCard);
+            }
             if (data.styleConfig.wordsPerPage) {
               initialPageSize = data.styleConfig.wordsPerPage;
               setWordsPerPage(initialPageSize);
@@ -414,6 +502,7 @@ export function SubtitleStudioModal({
           styleConfig: {
             ...config,
             wordsPerPage,
+            titleCard: titleCardConfig,
           },
         }),
       });
@@ -606,7 +695,7 @@ export function SubtitleStudioModal({
                     videoSrc={videoSrc}
                     durationInSeconds={durationSeconds}
                     cues={cues}
-                    styleConfig={{ ...config, wordsPerPage }}
+                    styleConfig={{ ...config, wordsPerPage, titleCard: titleCardConfig }}
                     autoPlay={false}
                     loop={true}
                   />
@@ -663,12 +752,12 @@ export function SubtitleStudioModal({
                 onClick={() => setActiveTab('styling')}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '8px 10px',
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: activeTab === 'styling' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
                   color: activeTab === 'styling' ? '#ffffff' : '#94a3b8',
-                  fontSize: '0.84rem',
+                  fontSize: '0.82rem',
                   fontWeight: activeTab === 'styling' ? 700 : 500,
                   cursor: 'pointer',
                   display: 'flex',
@@ -680,7 +769,47 @@ export function SubtitleStudioModal({
                 }}
               >
                 <span>🎨</span>
-                <span>Desain & Gaya</span>
+                <span>Gaya Subtitle</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setActiveTab('titleCard')}
+                style={{
+                  flex: 1,
+                  padding: '8px 10px',
+                  borderRadius: '8px',
+                  border: 'none',
+                  backgroundColor: activeTab === 'titleCard' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
+                  color: activeTab === 'titleCard' ? '#ffffff' : '#94a3b8',
+                  fontSize: '0.82rem',
+                  fontWeight: activeTab === 'titleCard' ? 700 : 500,
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px',
+                  boxShadow: activeTab === 'titleCard' ? '0 1px 4px rgba(0, 0, 0, 0.3)' : 'none',
+                  transition: 'all 0.15s ease',
+                }}
+              >
+                <span>🎬</span>
+                <span>Intro Hook Title</span>
+                {titleCardConfig.enabled && (
+                  <span
+                    style={{
+                      fontSize: '0.65rem',
+                      padding: '1px 5px',
+                      borderRadius: '8px',
+                      backgroundColor: 'rgba(34, 197, 94, 0.25)',
+                      border: '1px solid rgba(34, 197, 94, 0.5)',
+                      color: '#4ade80',
+                      fontWeight: 800,
+                    }}
+                  >
+                    ON
+                  </span>
+                )}
               </button>
 
               <button
@@ -688,12 +817,12 @@ export function SubtitleStudioModal({
                 onClick={() => setActiveTab('editor')}
                 style={{
                   flex: 1,
-                  padding: '8px 12px',
+                  padding: '8px 10px',
                   borderRadius: '8px',
                   border: 'none',
                   backgroundColor: activeTab === 'editor' ? 'rgba(99, 102, 241, 0.25)' : 'transparent',
                   color: activeTab === 'editor' ? '#ffffff' : '#94a3b8',
-                  fontSize: '0.84rem',
+                  fontSize: '0.82rem',
                   fontWeight: activeTab === 'editor' ? 700 : 500,
                   cursor: 'pointer',
                   display: 'flex',
@@ -705,7 +834,7 @@ export function SubtitleStudioModal({
                 }}
               >
                 <span>📝</span>
-                <span>Edit Teks & Waktu</span>
+                <span>Edit Transkrip</span>
                 {cues.length > 0 && (
                   <span
                     style={{
@@ -1310,7 +1439,459 @@ export function SubtitleStudioModal({
               </>
             )}
 
-            {/* TAB 2: Interactive Text & Timing Editor */}
+            {/* TAB 2: Intro Hook Title Card Configuration */}
+            {activeTab === 'titleCard' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                {/* 1. Master Toggle Card */}
+                <div
+                  style={{
+                    backgroundColor: titleCardConfig.enabled ? 'rgba(99, 102, 241, 0.12)' : 'rgba(15, 23, 42, 0.65)',
+                    border: titleCardConfig.enabled ? '1px solid rgba(99, 102, 241, 0.4)' : '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: '14px',
+                    transition: 'all 0.2s ease',
+                  }}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        backgroundColor: titleCardConfig.enabled ? 'rgba(99, 102, 241, 0.25)' : 'rgba(255, 255, 255, 0.06)',
+                        color: titleCardConfig.enabled ? '#a5b4fc' : '#94a3b8',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '1.25rem',
+                      }}
+                    >
+                      🎬
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#f8fafc', marginBottom: '2px' }}>
+                        Intro Title Card (Hook Pembuka)
+                      </div>
+                      <div style={{ fontSize: '0.74rem', color: '#94a3b8', maxWidth: '420px', lineHeight: 1.35 }}>
+                        Tampilkan kartu judul beranimasi di awal video (1–5 detik) untuk menarik perhatian penonton sebelum klip diputar.
+                      </div>
+                    </div>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const nextState = !titleCardConfig.enabled;
+                      setTitleCardConfig((prev) => ({ ...prev, enabled: nextState }));
+                    }}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      backgroundColor: titleCardConfig.enabled ? '#6366f1' : 'rgba(255, 255, 255, 0.1)',
+                      color: '#ffffff',
+                      fontSize: '0.82rem',
+                      fontWeight: 700,
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '6px',
+                      boxShadow: titleCardConfig.enabled ? '0 0 16px rgba(99, 102, 241, 0.5)' : 'none',
+                      transition: 'all 0.15s ease',
+                    }}
+                  >
+                    <span>{titleCardConfig.enabled ? '✓ AKTIF' : 'NONAKTIF'}</span>
+                  </button>
+                </div>
+
+                {/* 2. Title Card Editor Settings (Visible when enabled or for setup) */}
+                <div
+                  style={{
+                    backgroundColor: 'rgba(15, 23, 42, 0.65)',
+                    border: '1px solid rgba(255, 255, 255, 0.08)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: '16px',
+                    opacity: titleCardConfig.enabled ? 1 : 0.6,
+                    pointerEvents: titleCardConfig.enabled ? 'auto' : 'auto',
+                  }}
+                >
+                  {/* Mode Selector: Intro Card vs Video Overlay */}
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '8px' }}>
+                      Tipe Tampilan Hook
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+                      <button
+                        type="button"
+                        onClick={() => setTitleCardConfig((prev) => ({ ...prev, mode: 'card' }))}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          border: (titleCardConfig.mode || 'card') === 'card' ? '2px solid #6366f1' : '1px solid rgba(255, 255, 255, 0.1)',
+                          backgroundColor: (titleCardConfig.mode || 'card') === 'card' ? 'rgba(99, 102, 241, 0.18)' : 'rgba(2, 6, 23, 0.5)',
+                          color: (titleCardConfig.mode || 'card') === 'card' ? '#ffffff' : '#94a3b8',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          boxShadow: (titleCardConfig.mode || 'card') === 'card' ? '0 0 16px rgba(99, 102, 241, 0.3)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.84rem' }}>
+                          <span>🎴</span>
+                          <span>Kartu Pembuka (Intro Card)</span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.25 }}>
+                          Tampil sebelum klip mulai sebagai intro pemikat atensi
+                        </span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => setTitleCardConfig((prev) => ({ ...prev, mode: 'overlay' }))}
+                        style={{
+                          padding: '12px 14px',
+                          borderRadius: '12px',
+                          border: titleCardConfig.mode === 'overlay' ? '2px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                          backgroundColor: titleCardConfig.mode === 'overlay' ? 'rgba(56, 189, 248, 0.18)' : 'rgba(2, 6, 23, 0.5)',
+                          color: titleCardConfig.mode === 'overlay' ? '#ffffff' : '#94a3b8',
+                          textAlign: 'left',
+                          cursor: 'pointer',
+                          display: 'flex',
+                          flexDirection: 'column',
+                          gap: '4px',
+                          boxShadow: titleCardConfig.mode === 'overlay' ? '0 0 16px rgba(56, 189, 248, 0.3)' : 'none',
+                          transition: 'all 0.15s ease',
+                        }}
+                      >
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px', fontWeight: 700, fontSize: '0.84rem' }}>
+                          <span>🏷️</span>
+                          <span>Judul di Atas Video (Overlay)</span>
+                        </div>
+                        <span style={{ fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.25 }}>
+                          Klip langsung berjalan, judul melayang di atas video
+                        </span>
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Overlay Position (Only when mode === 'overlay') */}
+                  {titleCardConfig.mode === 'overlay' && (
+                    <div>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '8px' }}>
+                        Posisi Judul Overlay
+                      </label>
+                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                        {[
+                          { id: 'top' as const, label: 'Atas (Header)', icon: '⬆️' },
+                          { id: 'center' as const, label: 'Tengah (Focus)', icon: '🎯' },
+                          { id: 'bottom' as const, label: 'Bawah (Third)', icon: '⬇️' },
+                        ].map((pos) => {
+                          const isSelected = (titleCardConfig.overlayPosition || 'top') === pos.id;
+                          return (
+                            <button
+                              key={pos.id}
+                              type="button"
+                              onClick={() => setTitleCardConfig((prev) => ({ ...prev, overlayPosition: pos.id }))}
+                              style={{
+                                padding: '8px 10px',
+                                borderRadius: '8px',
+                                border: isSelected ? '1px solid #38bdf8' : '1px solid rgba(255, 255, 255, 0.1)',
+                                backgroundColor: isSelected ? 'rgba(56, 189, 248, 0.2)' : 'rgba(2, 6, 23, 0.5)',
+                                color: isSelected ? '#38bdf8' : '#94a3b8',
+                                fontSize: '0.76rem',
+                                fontWeight: 700,
+                                cursor: 'pointer',
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '6px',
+                                transition: 'all 0.15s ease',
+                              }}
+                            >
+                              <span>{pos.icon}</span>
+                              <span>{pos.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Hook Title Input */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
+                        Teks Judul Utama (Hook Headline)
+                      </label>
+                      <span style={{ fontSize: '0.7rem', color: '#94a3b8' }}>
+                        {titleCardConfig.title.length} karakter
+                      </span>
+                    </div>
+
+                    <textarea
+                      rows={2}
+                      value={titleCardConfig.title}
+                      onChange={(e) => setTitleCardConfig((prev) => ({ ...prev, title: e.target.value }))}
+                      placeholder="Contoh: RAHASIA VIRAL YANG TIDAK PERNAH DIBOCORKAN! 🔥"
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'rgba(2, 6, 23, 0.8)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '10px',
+                        padding: '10px 12px',
+                        color: '#ffffff',
+                        fontSize: '0.88rem',
+                        fontWeight: 600,
+                        resize: 'vertical',
+                        outline: 'none',
+                        boxShadow: 'inset 0 2px 4px rgba(0,0,0,0.5)',
+                      }}
+                    />
+
+                    {/* Quick Emojis & Hooks */}
+                    <div style={{ display: 'flex', gap: '6px', marginTop: '6px', flexWrap: 'wrap' }}>
+                      {[
+                        { label: '🔥 Viral', text: '🔥 ' },
+                        { label: '⚡ Rahasia', text: '⚡ RAHASIA: ' },
+                        { label: '😱 Shocking', text: '😱 ' },
+                        { label: '🚀 10X', text: ' 🚀' },
+                      ].map((item, idx) => (
+                        <button
+                          key={idx}
+                          type="button"
+                          onClick={() => {
+                            setTitleCardConfig((prev) => ({
+                              ...prev,
+                              title: `${item.text}${prev.title}`,
+                            }));
+                          }}
+                          style={{
+                            padding: '3px 8px',
+                            borderRadius: '6px',
+                            backgroundColor: 'rgba(255, 255, 255, 0.06)',
+                            border: '1px solid rgba(255, 255, 255, 0.1)',
+                            color: '#94a3b8',
+                            fontSize: '0.7rem',
+                            fontWeight: 600,
+                            cursor: 'pointer',
+                          }}
+                        >
+                          + {item.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Subtitle Input */}
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '6px' }}>
+                      Sub-judul / Tagline (Opsional)
+                    </label>
+                    <input
+                      type="text"
+                      value={titleCardConfig.subtitle || ''}
+                      onChange={(e) => setTitleCardConfig((prev) => ({ ...prev, subtitle: e.target.value }))}
+                      placeholder="Contoh: Tonton sampai selesai! • Part 1"
+                      style={{
+                        width: '100%',
+                        backgroundColor: 'rgba(2, 6, 23, 0.8)',
+                        border: '1px solid rgba(255, 255, 255, 0.15)',
+                        borderRadius: '10px',
+                        padding: '8px 12px',
+                        color: '#e2e8f0',
+                        fontSize: '0.82rem',
+                        outline: 'none',
+                      }}
+                    />
+                  </div>
+
+                  {/* Template Style Selection Grid */}
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '8px' }}>
+                      Pilih Style Template Hook
+                    </label>
+                    <div
+                      style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(2, 1fr)',
+                        gap: '10px',
+                      }}
+                    >
+                      {TITLE_CARD_TEMPLATES.map((tmpl) => {
+                        const isSelected = titleCardConfig.template === tmpl.id;
+                        return (
+                          <div
+                            key={tmpl.id}
+                            onClick={() => {
+                              setTitleCardConfig((prev) => ({
+                                ...prev,
+                                template: tmpl.id,
+                                accentColor: tmpl.defaultAccent,
+                              }));
+                            }}
+                            style={{
+                              padding: '12px',
+                              borderRadius: '12px',
+                              border: isSelected
+                                ? `2px solid ${tmpl.defaultAccent}`
+                                : '1px solid rgba(255, 255, 255, 0.1)',
+                              backgroundColor: isSelected
+                                ? 'rgba(99, 102, 241, 0.16)'
+                                : 'rgba(2, 6, 23, 0.5)',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              gap: '6px',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isSelected ? `0 0 16px ${tmpl.defaultAccent}30` : 'none',
+                            }}
+                          >
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                                <span style={{ fontSize: '1.1rem' }}>{tmpl.icon}</span>
+                                <span style={{ fontSize: '0.82rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#e2e8f0' }}>
+                                  {tmpl.title}
+                                </span>
+                              </div>
+                              <span
+                                style={{
+                                  fontSize: '0.62rem',
+                                  fontWeight: 800,
+                                  padding: '2px 6px',
+                                  borderRadius: '6px',
+                                  backgroundColor: isSelected ? `${tmpl.defaultAccent}25` : 'rgba(255, 255, 255, 0.08)',
+                                  color: isSelected ? tmpl.defaultAccent : '#94a3b8',
+                                }}
+                              >
+                                {tmpl.badge}
+                              </span>
+                            </div>
+
+                            <p style={{ margin: 0, fontSize: '0.7rem', color: '#94a3b8', lineHeight: 1.25 }}>
+                              {tmpl.desc}
+                            </p>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Transition Selection Grid */}
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '8px' }}>
+                      Pilihan Efek Transisi Keluar
+                    </label>
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
+                      {HOOK_TRANSITION_OPTIONS.map((tr) => {
+                        const isSelected = (titleCardConfig.transition || 'fade') === tr.id;
+                        return (
+                          <button
+                            key={tr.id}
+                            type="button"
+                            onClick={() => setTitleCardConfig((prev) => ({ ...prev, transition: tr.id }))}
+                            style={{
+                              padding: '8px 10px',
+                              borderRadius: '10px',
+                              border: isSelected ? '1px solid #a855f7' : '1px solid rgba(255, 255, 255, 0.1)',
+                              backgroundColor: isSelected ? 'rgba(168, 85, 247, 0.2)' : 'rgba(2, 6, 23, 0.5)',
+                              color: isSelected ? '#e9d5ff' : '#94a3b8',
+                              textAlign: 'center',
+                              cursor: 'pointer',
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              gap: '4px',
+                              transition: 'all 0.15s ease',
+                              boxShadow: isSelected ? '0 0 12px rgba(168, 85, 247, 0.3)' : 'none',
+                            }}
+                          >
+                            <span style={{ fontSize: '1rem' }}>{tr.icon}</span>
+                            <span style={{ fontSize: '0.75rem', fontWeight: 700, color: isSelected ? '#ffffff' : '#cbd5e1' }}>
+                              {tr.label}
+                            </span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  {/* Duration Slider */}
+                  <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                      <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0' }}>
+                        Durasi Tampil Judul
+                      </label>
+                      <span style={{ fontSize: '0.8rem', fontWeight: 800, color: '#38bdf8' }}>
+                        {titleCardConfig.durationSeconds} detik ({Math.round(titleCardConfig.durationSeconds * 30)} frames)
+                      </span>
+                    </div>
+
+                    <input
+                      type="range"
+                      min="1.0"
+                      max="5.0"
+                      step="0.5"
+                      value={titleCardConfig.durationSeconds}
+                      onChange={(e) =>
+                        setTitleCardConfig((prev) => ({
+                          ...prev,
+                          durationSeconds: Number(e.target.value),
+                        }))
+                      }
+                      style={{ width: '100%', accentColor: '#38bdf8', cursor: 'pointer' }}
+                    />
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.68rem', color: '#64748b', marginTop: '2px' }}>
+                      <span>1.0s (Cepat)</span>
+                      <span>2.5s (Direkomendasikan)</span>
+                      <span>5.0s (Panjang)</span>
+                    </div>
+                  </div>
+
+                  {/* Accent Color Palette */}
+                  <div>
+                    <label style={{ fontSize: '0.82rem', fontWeight: 700, color: '#e2e8f0', display: 'block', marginBottom: '8px' }}>
+                      Warna Aksen Hook
+                    </label>
+                    <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                      {COLOR_PALETTE.map((color) => {
+                        const isSelected = titleCardConfig.accentColor === color.hex;
+                        return (
+                          <button
+                            key={color.hex}
+                            type="button"
+                            onClick={() => setTitleCardConfig((prev) => ({ ...prev, accentColor: color.hex }))}
+                            title={color.label}
+                            style={{
+                              width: '28px',
+                              height: '28px',
+                              borderRadius: '50%',
+                              backgroundColor: color.hex,
+                              border: isSelected ? '2px solid #ffffff' : '1px solid rgba(255, 255, 255, 0.2)',
+                              cursor: 'pointer',
+                              boxShadow: isSelected ? `0 0 10px ${color.hex}` : 'none',
+                              transform: isSelected ? 'scale(1.15)' : 'scale(1)',
+                              transition: 'all 0.15s ease',
+                            }}
+                          />
+                        );
+                      })}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* TAB 3: Interactive Text & Timing Editor */}
             {activeTab === 'editor' && (
               <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
                 {/* Header & Quick Action Bar */}

@@ -2,10 +2,11 @@ import React from 'react';
 import {
   AbsoluteFill,
   OffthreadVideo,
+  Sequence,
   useCurrentFrame,
   useVideoConfig,
 } from 'remotion';
-import type { TikTokCaptionsProps, SubtitleStyleConfig } from '../types';
+import type { TikTokCaptionsProps, SubtitleStyleConfig, CaptionCue } from '../types';
 import { HormoziStyle } from '../templates/HormoziStyle';
 import { KaraokeStyle } from '../templates/KaraokeStyle';
 import { MinimalistStyle } from '../templates/MinimalistStyle';
@@ -15,6 +16,8 @@ import { PlainStyle } from '../templates/PlainStyle';
 import { BoxHighlightStyle } from '../templates/BoxHighlightStyle';
 import { CinemaStyle } from '../templates/CinemaStyle';
 import { UnderlineStyle } from '../templates/UnderlineStyle';
+import { TitleCard } from '../templates/title-cards/TitleCard';
+import { TitleOverlay } from '../templates/title-cards/TitleOverlay';
 import { ensureFontLoaded } from '../fonts';
 
 const DEFAULT_CONFIG: SubtitleStyleConfig = {
@@ -29,21 +32,20 @@ const DEFAULT_CONFIG: SubtitleStyleConfig = {
   wordsPerPage: 3,
 };
 
-export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
+interface VideoWithCaptionsLayerProps {
+  videoSrc: string;
+  cues: CaptionCue[];
+  config: SubtitleStyleConfig;
+}
+
+const VideoWithCaptionsLayer: React.FC<VideoWithCaptionsLayerProps> = ({
   videoSrc,
-  cues = [],
-  styleConfig = {},
+  cues,
+  config,
 }) => {
   const frame = useCurrentFrame();
   const { fps } = useVideoConfig();
   const currentTimeSec = frame / fps;
-
-  const config: SubtitleStyleConfig = {
-    ...DEFAULT_CONFIG,
-    ...styleConfig,
-  };
-
-  ensureFontLoaded(config.fontFamily);
 
   const timeOffset = config.timeOffset ?? 0;
   // Adjusted time for manual calibration (positive = delay/later, negative = advance/earlier)
@@ -58,12 +60,7 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
   const positionY = config.positionY ?? 75;
 
   return (
-    <AbsoluteFill style={{ backgroundColor: '#000000' }}>
-      {/* Load Google Fonts for Remotion Player & Export Renderer */}
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800;900&family=Montserrat:wght@400;600;700;800;900&family=Oswald:wght@500;600;700&family=Poppins:wght@400;600;700;800;900&family=Roboto:wght@400;500;700;900&display=swap');
-      `}</style>
-
+    <AbsoluteFill>
       {/* Background 9:16 Vertical Video */}
       {videoSrc && (
         <AbsoluteFill>
@@ -164,6 +161,72 @@ export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
           />
         )}
       </div>
+    </AbsoluteFill>
+  );
+};
+
+export const TikTokCaptions: React.FC<TikTokCaptionsProps> = ({
+  videoSrc,
+  durationInSeconds = 30,
+  cues = [],
+  styleConfig = {},
+  titleCard: directTitleCard,
+}) => {
+  const { fps } = useVideoConfig();
+
+  const config: SubtitleStyleConfig = {
+    ...DEFAULT_CONFIG,
+    ...styleConfig,
+  };
+
+  ensureFontLoaded(config.fontFamily);
+
+  const titleCard = config.titleCard || directTitleCard;
+  const isTitleCardActive = Boolean(titleCard?.enabled && titleCard?.title?.trim());
+  const hookMode = titleCard?.mode || 'card'; // 'card' or 'overlay'
+  const titleDurationSec = isTitleCardActive ? (titleCard?.durationSeconds || 2.5) : 0;
+  const titleDurationFrames = Math.max(0, Math.round(titleDurationSec * fps));
+  const videoDurationFrames = Math.max(1, Math.round(durationInSeconds * fps));
+
+  // If in 'card' mode, video is offset after the title card.
+  // If in 'overlay' mode, video starts immediately at frame 0 and title floats on top!
+  const isCardMode = isTitleCardActive && hookMode === 'card';
+  const isOverlayMode = isTitleCardActive && hookMode === 'overlay';
+  const videoStartFrame = isCardMode ? titleDurationFrames : 0;
+
+  return (
+    <AbsoluteFill style={{ backgroundColor: '#000000' }}>
+      {/* Load Google Fonts for Remotion Player & Export Renderer */}
+      <style>{`
+        @import url('https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Inter:wght@400;600;700;800;900&family=Montserrat:wght@400;600;700;800;900&family=Oswald:wght@500;600;700&family=Poppins:wght@400;600;700;800;900&family=Roboto:wght@400;500;700;900&display=swap');
+      `}</style>
+
+      {/* MODE 1: Standalone Fullscreen Intro Title Card */}
+      {isCardMode && titleDurationFrames > 0 && titleCard && (
+        <Sequence from={0} durationInFrames={titleDurationFrames} name="IntroTitleCard">
+          <TitleCard config={titleCard} />
+        </Sequence>
+      )}
+
+      {/* Main Vertical Video & Animated Captions Layer */}
+      <Sequence
+        from={videoStartFrame}
+        durationInFrames={videoDurationFrames}
+        name="MainVideoAndCaptions"
+      >
+        <VideoWithCaptionsLayer
+          videoSrc={videoSrc}
+          cues={cues}
+          config={config}
+        />
+      </Sequence>
+
+      {/* MODE 2: Floating Video Overlay Hook (Video runs underneath immediately) */}
+      {isOverlayMode && titleDurationFrames > 0 && titleCard && (
+        <Sequence from={0} durationInFrames={titleDurationFrames} name="TitleOverlayHook">
+          <TitleOverlay config={titleCard} />
+        </Sequence>
+      )}
     </AbsoluteFill>
   );
 };
