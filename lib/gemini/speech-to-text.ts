@@ -124,7 +124,7 @@ KEMBALIKAN HANYA JSON ARRAY:
 
     console.log('[Gemini STT] Sending audio stream to Gemini Flash model...');
     const response = await ai.models.generateContent({
-      model: 'gemini-2.5-flash',
+      model: 'gemini-3.6-flash',
       contents: [
         {
           inlineData: {
@@ -192,7 +192,7 @@ KEMBALIKAN HANYA JSON ARRAY:
     console.warn('[Gemini STT] Gemini audio transcription error, falling back:', err);
   } finally {
     if (isTempAudio && extractedAudioPath && existsSync(extractedAudioPath)) {
-      await fs.unlink(extractedAudioPath).catch(() => {});
+      await fs.unlink(extractedAudioPath).catch(() => { });
     }
   }
 
