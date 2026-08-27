@@ -21,10 +21,9 @@ export function AnalyzeTrigger({ videoId, hasTranscript, hasAnalysis, onJobStart
     setIsLoading(true);
     setError('');
 
-    const tempJobId = `temp-analyze-${Date.now()}`;
     if (onJobStarted) {
       onJobStarted({
-        id: tempJobId,
+        id: "temp_job_id", // biar keren aja langsung muncul sebenarnya perlu refresh
         type: 'VIRAL_ANALYSIS',
         status: 'PROCESSING',
         progress: 35,

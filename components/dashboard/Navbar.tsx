@@ -3,12 +3,18 @@
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { signOut, useSession } from '@/lib/auth/client';
+import { signOut } from '@/lib/auth/client';
 
-export function Navbar() {
+interface NavbarProps {
+  user: {
+    name?: string | null;
+    email?: string | null;
+  } | null;
+}
+
+export function Navbar({ user }: NavbarProps) {
   const router = useRouter();
   const pathname = usePathname();
-  const { data: session } = useSession();
 
   async function handleSignOut() {
     await signOut();
@@ -51,9 +57,9 @@ export function Navbar() {
 
         {/* User info + logout */}
         <div className="navbar-user">
-          {session?.user && (
+          {user && (
             <span className="navbar-user-name">
-              {session.user.name || session.user.email}
+              {user.name || user.email}
             </span>
           )}
           <button

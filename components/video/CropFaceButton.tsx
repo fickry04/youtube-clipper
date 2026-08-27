@@ -71,20 +71,7 @@ export function CropFaceButton({
   const handleManualCropSubmit = useCallback(async () => {
     setError('');
     setLoadingManual(true);
-
-    const tempJobId = `temp-analyze-${Date.now()}`;
-    if (onJobStarted) {
-      onJobStarted({
-        id: tempJobId,
-        type: 'MANUAL_CROP',
-        status: 'PROCESSING',
-        progress: 35,
-        error: null,
-        createdAt: new Date().toISOString(),
-        completedAt: null,
-      });
-    }
-
+    setShowManualModal(false);
     try {
       const res = await fetch(`/api/clips/${clipId}/crop-manual`, {
         method: 'POST',
@@ -95,6 +82,7 @@ export function CropFaceButton({
           scale,
         }),
       });
+      router.refresh()
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Manual Crop failed.');
@@ -238,20 +226,7 @@ export function CropFaceButton({
             id={`crop-manual-btn-${clipId}`}
             onClick={() => setShowManualModal(true)}
             disabled={loadingAi || loadingManual || isJobRunning || !hasClipAsset}
-            className="clip-action-pill-btn"
-            style={{
-              background: 'rgba(56, 189, 248, 0.12)',
-              border: '1px solid rgba(56, 189, 248, 0.35)',
-              color: '#38bdf8',
-              fontSize: '0.78rem',
-              fontWeight: 600,
-              padding: '6px 12px',
-              borderRadius: '9999px',
-              display: 'inline-flex',
-              alignItems: 'center',
-              gap: '6px',
-              cursor: 'pointer',
-            }}
+            className="clip-action-pill-btn clip-btn-manual-crop"
             title={!hasClipAsset ? 'Download klip terlebih dahulu' : 'Crop manual 9:16 dengan preview video dan overlay interaktif'}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

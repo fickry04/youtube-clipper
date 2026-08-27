@@ -92,6 +92,7 @@ export function GenerateSubtitleButton({
           durationSeconds={durationSeconds}
           onClose={() => setIsStudioOpen(false)}
           onExportStarted={onJobStarted}
+          onAITranscriptStarted={onJobStarted}
         />
       )}
     </>

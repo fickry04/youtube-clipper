@@ -111,6 +111,7 @@ export function VideoDetailManager({
   const analyzeJob = jobs.find((j) => j.type === 'VIRAL_ANALYSIS');
   const subtitleJob = jobs.find((j) => j.type === 'GENERATE_SUBTITLE');
   const manualCropJob = jobs.find((j) => j.type === 'MANUAL_CROP');
+  const aiTranscriptJob = jobs.find((j) => j.type === 'AI_TRANSCRIPT');
 
   const isJobRunning = jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
@@ -256,6 +257,96 @@ export function VideoDetailManager({
           Sticky Floating Progress Notifications (Bottom Right)
       ========================================================= */}
       <div className="sticky-toast-container">
+        {/* AI Transcribing Toast */}
+        {aiTranscriptJob && !dismissedToastIds[aiTranscriptJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[aiTranscriptJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="AI Transcription progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {aiTranscriptJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : aiTranscriptJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-processing" style={{ background: 'rgba(245, 158, 11, 0.18)', color: '#fbbf24' }}>
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px', borderTopColor: '#fbbf24' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {aiTranscriptJob.status === 'COMPLETED'
+                    ? 'AI Transcription Finished'
+                    : aiTranscriptJob.status === 'FAILED'
+                      ? 'Transcription Failed'
+                      : aiTranscriptJob.status === 'QUEUED'
+                        ? 'Queued for Transcription...'
+                        : 'Transcripting text from video…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(aiTranscriptJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {aiTranscriptJob.status === 'COMPLETED'
+                    ? 'Transcripting video completed.'
+                    : aiTranscriptJob.status === 'FAILED'
+                      ? (aiTranscriptJob.error || 'Failed to transcript video with ai')
+                      : 'Processing trancript video with AI'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#fbbf24' }}>
+                  {aiTranscriptJob.status === 'COMPLETED' ? '100%' : `${aiTranscriptJob.progress || 35}%`}
+                </span>
+              </div>
+
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: aiTranscriptJob.status === 'COMPLETED' ? '100%' : `${aiTranscriptJob.progress || 35}%`,
+                    background:
+                      aiTranscriptJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : aiTranscriptJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'linear-gradient(90deg, #f59e0b, #ec4899)',
+                  }}
+                >
+                  {aiTranscriptJob.status !== 'COMPLETED' && aiTranscriptJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+
         {/* Viral Analysis Progress Toast */}
         {analyzeJob && !dismissedToastIds[analyzeJob.id] && (
           <aside

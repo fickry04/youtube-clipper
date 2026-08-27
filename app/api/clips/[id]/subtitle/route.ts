@@ -33,7 +33,7 @@ export async function GET(
   const format = searchParams.get('format') ?? 'cues';
   const wordsPerPage = parseInt(searchParams.get('wordsPerPage') ?? '3', 10);
   const requestedEngine = (searchParams.get('engine') as 'whisper' | 'gemini') || undefined;
-  const forceRetranscribe = searchParams.get('retranscribe') === 'true';
+  const doTrancscribe = searchParams.get('doTrancscribe') === 'true';
 
   try {
     // Ownership check & load clip with transcript
@@ -83,7 +83,7 @@ export async function GET(
 
     if (savedCues && savedCues.length > 0) {
       hasExistingSubtitle = true;
-      if (!forceRetranscribe) {
+      if (!doTrancscribe) {
         const allWords = savedCues.flatMap((c: CaptionCue) => c.words || []);
         if (allWords.length > 0) {
           cues = groupWordsIntoCues(allWords, wordsPerPage, clip.durationSeconds);
@@ -93,8 +93,8 @@ export async function GET(
       }
     }
 
-    // 2. Only run STT if forceRetranscribe is explicitly true
-    if (forceRetranscribe) {
+    // 2. Only run STT if doTranscribe is explicitly true
+    if (doTrancscribe) {
       const storage = getStorage();
       const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
       const originalKey = StorageKeys.clipVideo(session.user.id, clipId);
@@ -114,6 +114,18 @@ export async function GET(
       const rawSegments: TranscriptSegment[] = parseTranscriptSegments(transcript?.segments);
 
       const selectedEngine: 'whisper' | 'gemini' = requestedEngine || savedStyleConfig?.sttEngine || 'whisper';
+
+      // Create a job record
+      const job = await prisma.job.create({
+        data: {
+          userId: session.user.id,
+          videoId: clip.viralAnalysis.videoId,
+          type: 'AI_TRANSCRIPT',
+          status: 'PROCESSING',
+          startedAt: new Date(),
+          progress: 15,
+        },
+      });
 
       if (mediaPath) {
         cues = await transcribeClip({
@@ -166,6 +178,12 @@ export async function GET(
         });
       }
       savedStyleConfig = updatedStyleConfig;
+
+      // Mark job as completed
+      await prisma.job.update({
+        where: { id: job.id },
+        data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },
+      });
     }
 
     if (format === 'cues' || format === 'json') {
@@ -286,7 +304,7 @@ export async function POST(
           format: 'json',
           content: JSON.stringify({ cues, styleConfig, updatedAt: new Date().toISOString() }),
         },
-      }).catch(() => {});
+      }).catch(() => { });
     }
 
     const job = await prisma.job.create({

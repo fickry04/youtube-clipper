@@ -28,6 +28,7 @@ export const QUEUE_NAMES = {
   SUBTITLE: 'subtitle',
   FACE_DETECTION: 'face-detection',
   MANUAL_CROP: 'manual-crop',
+  AI_TRANSCRIPT: 'ai-transcript',
 };
 
 // Payloads for each job type

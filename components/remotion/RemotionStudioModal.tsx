@@ -15,6 +15,7 @@ interface RemotionStudioModalProps {
   durationSeconds: number;
   onClose: () => void;
   onExportStarted?: (job: JobInfo) => void;
+  onAITranscriptStarted?: (job: JobInfo) => void;
 }
 
 const emptySubscribe = () => () => { };
@@ -214,6 +215,7 @@ export function RemotionStudioModal({
   durationSeconds,
   onClose,
   onExportStarted,
+  onAITranscriptStarted,
 }: RemotionStudioModalProps) {
   const mounted = useSyncExternalStore(
     emptySubscribe,
@@ -375,9 +377,20 @@ export function RemotionStudioModal({
     const selectedEngine = config.sttEngine || 'whisper';
     setIsTranscribing(true);
     setCuesError(null);
+    if (onAITranscriptStarted) {
+      onAITranscriptStarted({
+        id: "temp_job_id", // biar keren aja langsung muncul
+        type: 'AI_TRANSCRIPT',
+        status: 'QUEUED',
+        progress: 15,
+        error: null,
+        createdAt: new Date(),
+        completedAt: null,
+      });
+    }
     try {
       const res = await fetch(
-        `/api/clips/${clipId}/subtitle?format=cues&engine=${selectedEngine}&retranscribe=true&wordsPerPage=${wordsPerPage}`
+        `/api/clips/${clipId}/subtitle?format=cues&engine=${selectedEngine}&doTrancscribe=true&wordsPerPage=${wordsPerPage}`
       );
       const data = await res.json();
       if (data.success && Array.isArray(data.cues) && data.cues.length > 0) {
