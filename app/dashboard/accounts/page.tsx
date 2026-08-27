@@ -7,20 +7,6 @@ export default async function SocialAccountsPage() {
   const session = await getSession();
   if (!session) redirect('/login');
 
-  const accounts = await prisma.socialAccount.findMany({
-    where: { userId: session.user.id },
-    orderBy: [{ platform: 'asc' }, { createdAt: 'asc' }],
-  });
-
-  const initialAccounts: SocialAccountInfo[] = accounts.map((account) => ({
-    id: account.id,
-    platform: account.platform,
-    displayName: account.displayName,
-    username: account.username,
-    profileUrl: account.profileUrl,
-    createdAt: account.createdAt.toISOString(),
-  }));
-
   return (
     <div className="social-accounts-page">
       <header className="social-accounts-header">
@@ -34,7 +20,7 @@ export default async function SocialAccountsPage() {
         </p>
       </header>
 
-      <SocialAccountsManager initialAccounts={initialAccounts} />
+      <SocialAccountsManager />
     </div>
   );
 }

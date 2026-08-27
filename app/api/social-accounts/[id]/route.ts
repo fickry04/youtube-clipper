@@ -2,9 +2,10 @@ import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { encryptJson } from '@/lib/crypto';
 
 const UpdateSocialAccountSchema = z.object({
-  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS']),
+  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS', 'FACEBOOK']),
   displayName: z.string().trim().min(1, 'Display name is required').max(60, 'Display name too long'),
   username: z
     .string()
@@ -13,6 +14,7 @@ const UpdateSocialAccountSchema = z.object({
     .max(50, 'Username too long')
     .transform((value) => value.replace(/^@+/, '')),
   profileUrl: z.union([z.string().url('Invalid profile URL'), z.literal('')]).optional(),
+  credential: z.string()
 });
 
 export async function PATCH(
@@ -43,6 +45,8 @@ export async function PATCH(
     );
   }
 
+  const encryptedCredential = await encryptJson(parsed.data.credential)
+
   try {
     // Ownership in the where clause — other users' rows look like 404s.
     const existing = await prisma.socialAccount.findFirst({
@@ -62,6 +66,7 @@ export async function PATCH(
         platform: parsed.data.platform,
         displayName: parsed.data.displayName,
         username: parsed.data.username,
+        encryptedCredential: encryptedCredential,
         profileUrl: parsed.data.profileUrl ? parsed.data.profileUrl : null,
       },
     });

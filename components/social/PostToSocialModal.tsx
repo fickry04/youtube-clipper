@@ -13,27 +13,16 @@ import {
   PLATFORM_META,
   SOCIAL_PLATFORMS,
   buildFullCaption,
-  descriptionHasHashtags,
-  normalizeHashtags,
   type PlatformCaption,
   type PlatformCaptionMap,
   type SocialPlatform,
 } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
 import type { SocialAccountInfo } from './SocialAccountsManager';
+import type { ClipInfo } from '../video/VideoDetailManager';
 
 interface PostToSocialModalProps {
-  clip: {
-    id: string;
-    rank: number;
-    title: string;
-    viralScore: number;
-    startTime: string;
-    endTime: string;
-    durationSeconds: number;
-    processingStatus: string;
-    hasVertical?: boolean;
-  };
+  clip: ClipInfo;
   onClose: () => void;
 }
 
@@ -42,7 +31,7 @@ type Drafts = PlatformCaptionMap;
 const pfStyle = (color: string, color2?: string): CSSProperties =>
   ({ '--pf': color, ...(color2 ? { '--pf2': color2 } : {}) }) as CSSProperties;
 
-const emptySubscribe = () => () => {};
+const emptySubscribe = () => () => { };
 
 /**
  * Guard against duplicate Gemini generations for the same clip — StrictMode
@@ -121,15 +110,10 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
 
   // ESC to close + scroll lock (same behavior as ExpandedPhoneModal)
   useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') onClose();
-    };
     const originalOverflow = document.body.style.overflow;
     document.body.style.overflow = 'hidden';
-    window.addEventListener('keydown', handleKeyDown);
     return () => {
       document.body.style.overflow = originalOverflow;
-      window.removeEventListener('keydown', handleKeyDown);
     };
   }, [onClose]);
 
@@ -144,7 +128,6 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
         if (!response.ok || !data.success) throw new Error(data.error || 'Gagal memuat akun.');
         const list = data.accounts as SocialAccountInfo[];
         setAccounts(list);
-        setSelectedAccountIds(new Set(list.map((a) => a.id)));
       } catch (err) {
         if (!cancelled) setAccountsError(err instanceof Error ? err.message : 'Gagal memuat akun.');
       }
@@ -204,7 +187,7 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
 
   const activeMeta = PLATFORM_META[activePlatform];
   const activeDraft: PlatformCaption =
-    drafts[activePlatform] ?? { hook: '', description: '', hashtags: [] };
+    drafts[activePlatform] ?? { hook: '', description: '' };
 
   function updateActiveDraft(patch: Partial<PlatformCaption>) {
     setDrafts((prev) => ({
@@ -213,24 +196,7 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
     }));
   }
 
-  function handleAddTag() {
-    const [tag] = normalizeHashtags(tagInput, 0, 1);
-    if (!tag || activeDraft.hashtags.includes(tag)) {
-      setTagInput('');
-      return;
-    }
-    updateActiveDraft({ hashtags: [...activeDraft.hashtags, tag] });
-    setTagInput('');
-  }
-
-  function handleRemoveTag(tag: string) {
-    updateActiveDraft({ hashtags: activeDraft.hashtags.filter((t) => t !== tag) });
-  }
-
-  /** Description with hashtags appended when they are not already inline. */
-  const composedDescription = descriptionHasHashtags(activeDraft.description, activeDraft.hashtags)
-    ? activeDraft.description.trim()
-    : `${activeDraft.description.trim()}\n\n${activeDraft.hashtags.join(' ')}`.trim();
+  const composedDescription = activeDraft.description.trim();
 
   const descChars = composedDescription.length;
   const descPercent = activeMeta.maxDescriptionChars > 0 ? descChars / activeMeta.maxDescriptionChars : 1;
@@ -263,9 +229,9 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
     });
   }
 
-  const videoSrc = clip.hasVertical
-    ? `/api/clips/${clip.id}/vertical`
-    : `/api/clips/${clip.id}/video`;
+  const videoSrc = clip.hasVerticalSubtitled
+    ? `/api/clips/${clip.id}/vertical?subtitled=true`
+    : clip.hasVertical ? `/api/clips/${clip.id}/vertical` : `/api/clips/${clip.id}/video`;
   const downloadFilename = `clip_${clip.rank}_${clip.hasVertical ? '9-16' : '16-9'}_${clip.startTime.replace(':', '-')}.mp4`;
 
   if (!mounted) return null;
@@ -448,41 +414,6 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
                     placeholder="Deskripsi video…"
                   />
                 </div>
-
-                <div className="post-field">
-                  <div className="post-field-head">
-                    <label>Hashtag</label>
-                    <span className="post-hashtag-count">{activeDraft.hashtags.length} tagar</span>
-                  </div>
-                  <div className="post-hashtag-wrap">
-                    {activeDraft.hashtags.map((tag) => (
-                      <button
-                        key={tag}
-                        type="button"
-                        className="post-hashtag-chip"
-                        onClick={() => handleRemoveTag(tag)}
-                        title="Klik untuk hapus tagar"
-                      >
-                        {tag}
-                        <i>×</i>
-                      </button>
-                    ))}
-                    <input
-                      type="text"
-                      value={tagInput}
-                      onChange={(e) => setTagInput(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' || e.key === ',') {
-                          e.preventDefault();
-                          handleAddTag();
-                        }
-                      }}
-                      onBlur={handleAddTag}
-                      placeholder="+ tambah tagar, tekan Enter"
-                    />
-                  </div>
-                </div>
-
                 <div className="post-copy-row">
                   <button
                     type="button"
@@ -530,17 +461,9 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
                     Regenerate AI
                   </button>
                 </div>
-                <p className="post-flow-hint">
-                  Posting manual: salin caption → buka halaman upload di tab baru → pilih file video.
-                  {selectedCount > 0 && ` Siapkan untuk ${selectedCount} akun yang kamu pilih.`}
-                </p>
               </>
             )}
           </section>
-        </div>
-
-        <div className="phone-modal-footer-hint">
-          <span>Tekan <kbd>ESC</kbd> atau klik di luar untuk menutup</span>
         </div>
       </div>
     </div>

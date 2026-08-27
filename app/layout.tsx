@@ -44,12 +44,12 @@ const oswald = Oswald({
 });
 
 export const metadata: Metadata = {
-  title: 'YouTube Viral Clipper',
+  title: 'YouTube Clipper',
   description:
     'Instantly transcribe any YouTube video with language selection and analyze viral clips. Powered by youtube-transcript-plus.',
   keywords: ['youtube transcript', 'video transcription', 'caption extractor', 'subtitle generator', 'ai analysis', 'viral clips'],
   openGraph: {
-    title: 'YouTube Viral Clipper',
+    title: 'YouTube Clipper',
     description: 'Instantly transcribe any YouTube video with language selection and analyze viral clips.',
     type: 'website',
   },

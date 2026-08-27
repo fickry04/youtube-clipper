@@ -2,21 +2,11 @@
 
 import { useState } from 'react';
 import { PostToSocialModal } from './PostToSocialModal';
+import type { ClipInfo } from '../video/VideoDetailManager';
 
-export interface PostableClipInfo {
-  id: string;
-  rank: number;
-  title: string;
-  viralScore: number;
-  startTime: string;
-  endTime: string;
-  durationSeconds: number;
-  processingStatus: string;
-  hasVertical?: boolean;
-}
 
 interface PostSocialButtonProps {
-  clip: PostableClipInfo;
+  clip: ClipInfo;
 }
 
 /**

@@ -12,13 +12,13 @@ datasource db {
 // =============================================================================
 
 model User {
-  id            String    @id
-  name          String
-  email         String
-  emailVerified Boolean   @default(false)
-  image         String?
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  id             String          @id
+  name           String
+  email          String
+  emailVerified  Boolean         @default(false)
+  image          String?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
   sessions       Session[]
   accounts       Account[]
   projects       Project[]
@@ -246,9 +246,7 @@ model Job {
   attempts    Int       @default(0)
   maxAttempts Int       @default(3)
   payload     Json?
-  result      Json?
   error       String?
-  bullmqId    String? // BullMQ job ID for reference
   startedAt   DateTime?
   completedAt DateTime?
   createdAt   DateTime  @default(now())
@@ -264,16 +262,17 @@ model Job {
 // =============================================================================
 
 model SocialAccount {
-  id          String   @id @default(cuid())
-  userId      String
-  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-  platform    String // YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS
-  displayName String // e.g. "Akun Utama"
-  username    String // handle without "@"
-  profileUrl  String?
-  isActive    Boolean  @default(true)
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
+  id                  String   @id @default(cuid())
+  userId              String
+  user                User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform            String // YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS, FACEBOOK
+  encryptedCredential String?
+  displayName         String // e.g. "Akun Utama"
+  username            String // handle without "@"
+  profileUrl          String?
+  isActive            Boolean  @default(true)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
 
   @@index([userId])
 }

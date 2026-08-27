@@ -2,9 +2,10 @@ import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
+import { decryptJson, encryptJson } from '@/lib/crypto';
 
 const CreateSocialAccountSchema = z.object({
-  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS']),
+  platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS', 'FACEBOOK']),
   displayName: z.string().trim().min(1, 'Display name is required').max(60, 'Display name too long'),
   username: z
     .string()
@@ -13,6 +14,7 @@ const CreateSocialAccountSchema = z.object({
     .max(50, 'Username too long')
     .transform((value) => value.replace(/^@+/, '')),
   profileUrl: z.union([z.string().url('Invalid profile URL'), z.literal('')]).optional(),
+  credential: z.string()
 });
 
 export async function GET(): Promise<Response> {
@@ -29,7 +31,18 @@ export async function GET(): Promise<Response> {
       orderBy: [{ platform: 'asc' }, { createdAt: 'asc' }],
     });
 
-    return Response.json({ success: true, accounts });
+    const decryptedAccounts = await Promise.all(accounts.map(async (account) => {
+      if (!account.encryptedCredential) {
+        return account;
+      }
+      const decryptedCredential = await decryptJson(account.encryptedCredential);
+      return {
+        ...account,
+        decryptedCredential: decryptedCredential,
+      };
+    }));
+
+    return Response.json({ success: true, accounts: decryptedAccounts });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to fetch social accounts.';
     return Response.json({ success: false, error: message }, { status: 500 });
@@ -59,6 +72,8 @@ export async function POST(request: NextRequest): Promise<Response> {
     );
   }
 
+  const encryptedCredential = await encryptJson(parsed.data.credential)
+
   try {
     const account = await prisma.socialAccount.create({
       data: {
@@ -66,6 +81,7 @@ export async function POST(request: NextRequest): Promise<Response> {
         platform: parsed.data.platform,
         displayName: parsed.data.displayName,
         username: parsed.data.username,
+        encryptedCredential: encryptedCredential,
         profileUrl: parsed.data.profileUrl ? parsed.data.profileUrl : null,
       },
     });

@@ -8,7 +8,7 @@
  * marked POSTING CLIENT HOOK) without touching UI or API code.
  */
 
-export const SOCIAL_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS'] as const;
+export const SOCIAL_PLATFORMS = ['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS', 'FACEBOOK'] as const;
 
 export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 
@@ -20,7 +20,6 @@ export type SocialPlatform = (typeof SOCIAL_PLATFORMS)[number];
 export type PlatformCaption = {
   hook: string;
   description: string;
-  hashtags: string[];
 };
 
 export type PlatformCaptionMap = Partial<Record<SocialPlatform, PlatformCaption>>;
@@ -34,8 +33,6 @@ interface PlatformMeta {
   color2?: string;
   maxHookChars: number;
   maxDescriptionChars: number;
-  /** Recommended number of hashtags returned by the AI. */
-  recommendedHashtags: [number, number];
   /** Manual upload / composer page opened in a new tab. */
   uploadUrl: string;
 }
@@ -48,7 +45,6 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color2: '#FF4E45',
     maxHookChars: 100,
     maxDescriptionChars: 5000,
-    recommendedHashtags: [3, 5],
     uploadUrl: 'https://studio.youtube.com/channel/upload',
   },
   TIKTOK: {
@@ -58,7 +54,6 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color2: '#25F4EE',
     maxHookChars: 100,
     maxDescriptionChars: 2200,
-    recommendedHashtags: [3, 6],
     uploadUrl: 'https://www.tiktok.com/tiktokstudio/upload',
   },
   INSTAGRAM: {
@@ -68,7 +63,6 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color2: '#8134AF',
     maxHookChars: 125,
     maxDescriptionChars: 2200,
-    recommendedHashtags: [5, 10],
     uploadUrl: 'https://www.instagram.com/',
   },
   X: {
@@ -77,7 +71,6 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color: '#1D9BF0',
     maxHookChars: 90,
     maxDescriptionChars: 280,
-    recommendedHashtags: [1, 3],
     uploadUrl: 'https://x.com/compose/post',
   },
   THREADS: {
@@ -87,8 +80,15 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color2: '#7C3AED',
     maxHookChars: 80,
     maxDescriptionChars: 500,
-    recommendedHashtags: [2, 5],
     uploadUrl: 'https://www.threads.net/',
+  },
+  FACEBOOK: {
+    label: 'Facebook',
+    shortLabel: 'Facebook',
+    color: '#1877F2',
+    maxHookChars: 90,
+    maxDescriptionChars: 280,
+    uploadUrl: 'https://www.facebook.com/profile.php',
   },
 };
 
@@ -139,14 +139,11 @@ export function descriptionHasHashtags(description: string, hashtags: string[]):
   return description.includes(needle);
 }
 
-/** Join hook + description + hashtags into one copy-ready caption block. */
+/** Join hook + description and hashtags into one copy-ready caption block. */
 export function buildFullCaption(caption: PlatformCaption): string {
   const parts = [caption.hook.trim(), '\n'];
   const desc = caption.description.trim();
   parts.push(desc);
-  if (!descriptionHasHashtags(desc, caption.hashtags)) {
-    parts.push('\n\n', caption.hashtags.join(' '));
-  }
   return parts.join('\n');
 }
 

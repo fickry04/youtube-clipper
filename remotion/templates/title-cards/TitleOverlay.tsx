@@ -38,7 +38,7 @@ export const TitleOverlay: React.FC<TitleOverlayProps> = ({ config }) => {
   // Vertical position styles
   let verticalStyle: React.CSSProperties = { top: '160px' };
   if (position === 'center') {
-    verticalStyle = { top: '50%' };
+    verticalStyle = { top: '50%', transform: 'translateX(-50%)' };
   } else if (position === 'bottom') {
     verticalStyle = { bottom: '340px' };
   }

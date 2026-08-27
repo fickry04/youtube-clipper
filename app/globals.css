@@ -4986,11 +4986,9 @@ body {
 
 .social-summary-chip.is-connected {
   border-color: color-mix(in srgb, var(--pf) 55%, transparent);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--pf) 14%, transparent),
-    color-mix(in srgb, var(--pf2, var(--pf)) 18%, transparent)
-  );
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--pf) 14%, transparent),
+      color-mix(in srgb, var(--pf2, var(--pf)) 18%, transparent));
   box-shadow: 0 2px 10px color-mix(in srgb, var(--pf) 18%, transparent);
 }
 
@@ -5130,11 +5128,9 @@ body {
 
 .platform-tile.is-active {
   border-color: var(--pf);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--pf) 16%, transparent),
-    color-mix(in srgb, var(--pf2, var(--pf)) 22%, transparent)
-  );
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--pf) 16%, transparent),
+      color-mix(in srgb, var(--pf2, var(--pf)) 22%, transparent));
   color: var(--text-primary);
   box-shadow: 0 4px 18px color-mix(in srgb, var(--pf) 25%, transparent);
 }
@@ -5282,11 +5278,9 @@ body {
   border-radius: var(--radius-md);
   flex-shrink: 0;
   color: var(--pf);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--pf) 14%, transparent),
-    color-mix(in srgb, var(--pf2, var(--pf)) 20%, transparent)
-  );
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--pf) 14%, transparent),
+      color-mix(in srgb, var(--pf2, var(--pf)) 20%, transparent));
   border: 1px solid color-mix(in srgb, var(--pf) 35%, transparent);
 }
 
@@ -5763,11 +5757,9 @@ body {
 .post-modal-tab.is-active {
   border-color: var(--pf);
   color: var(--text-primary);
-  background: linear-gradient(
-    135deg,
-    color-mix(in srgb, var(--pf) 14%, transparent),
-    color-mix(in srgb, var(--pf2, var(--pf)) 18%, transparent)
-  );
+  background: linear-gradient(135deg,
+      color-mix(in srgb, var(--pf) 14%, transparent),
+      color-mix(in srgb, var(--pf2, var(--pf)) 18%, transparent));
 }
 
 .post-modal-tab.is-active svg {
@@ -5826,12 +5818,10 @@ body {
 .post-modal-skeleton-row {
   height: 42px;
   border-radius: var(--radius-sm);
-  background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0.04) 40%,
-    rgba(255, 255, 255, 0.09) 50%,
-    rgba(255, 255, 255, 0.04) 60%
-  );
+  background: linear-gradient(100deg,
+      rgba(255, 255, 255, 0.04) 40%,
+      rgba(255, 255, 255, 0.09) 50%,
+      rgba(255, 255, 255, 0.04) 60%);
   background-size: 200% 100%;
   animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
@@ -5850,12 +5840,10 @@ body {
   width: 84px;
   height: 26px;
   border-radius: 99px;
-  background: linear-gradient(
-    100deg,
-    rgba(255, 255, 255, 0.04) 40%,
-    rgba(255, 255, 255, 0.09) 50%,
-    rgba(255, 255, 255, 0.04) 60%
-  );
+  background: linear-gradient(100deg,
+      rgba(255, 255, 255, 0.04) 40%,
+      rgba(255, 255, 255, 0.09) 50%,
+      rgba(255, 255, 255, 0.04) 60%);
   background-size: 200% 100%;
   animation: skeletonShimmer 1.4s ease-in-out infinite;
 }
@@ -6087,12 +6075,6 @@ body {
 .post-regenerate-btn:hover {
   border-color: var(--border-active);
   color: var(--text-primary);
-}
-
-.post-flow-hint {
-  font-size: 0.72rem;
-  line-height: 1.6;
-  color: var(--text-muted);
 }
 
 /* ---------- Responsive ---------- */

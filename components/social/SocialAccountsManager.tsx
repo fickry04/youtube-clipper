@@ -1,16 +1,19 @@
 'use client';
 
-import { useMemo, useState, type CSSProperties } from 'react';
+import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { PLATFORM_META, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
+import { decryptJson } from '@/lib/crypto';
 
 export interface SocialAccountInfo {
   id: string;
   platform: string;
   displayName: string;
   username: string;
+  encryptedCredential?: string;
   profileUrl: string | null;
   createdAt: string;
+  decryptedCredential?: string;
 }
 
 interface SocialAccountsManagerProps {
@@ -22,6 +25,7 @@ const EMPTY_FORM = {
   displayName: '',
   username: '',
   profileUrl: '',
+  credential: ''
 };
 
 type FormState = typeof EMPTY_FORM;
@@ -29,8 +33,8 @@ type FormState = typeof EMPTY_FORM;
 const pfStyle = (color: string, color2?: string): CSSProperties =>
   ({ '--pf': color, ...(color2 ? { '--pf2': color2 } : {}) }) as CSSProperties;
 
-export function SocialAccountsManager({ initialAccounts }: SocialAccountsManagerProps) {
-  const [accounts, setAccounts] = useState<SocialAccountInfo[]>(initialAccounts);
+export function SocialAccountsManager() {
+  const [accounts, setAccounts] = useState<SocialAccountInfo[]>([]);
   const [formOpen, setFormOpen] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [form, setForm] = useState<FormState>(EMPTY_FORM);
@@ -38,6 +42,21 @@ export function SocialAccountsManager({ initialAccounts }: SocialAccountsManager
   const [error, setError] = useState('');
   const [successMsg, setSuccessMsg] = useState('');
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
+  useEffect(() => {
+    const loadAccounts = async () => {
+      const res = await fetch('/api/social-accounts');
+
+      if (!res.ok) {
+        throw new Error('Failed to fetch social accounts');
+      }
+
+      const data = await res.json();
+
+      setAccounts(data.accounts as SocialAccountInfo[]);
+    };
+
+    loadAccounts();
+  }, []);
 
   const countsByPlatform = useMemo(() => {
     const counts: Partial<Record<SocialPlatform, number>> = {};
@@ -62,13 +81,14 @@ export function SocialAccountsManager({ initialAccounts }: SocialAccountsManager
     setFormOpen(true);
   }
 
-  function openEditForm(account: SocialAccountInfo) {
+  async function openEditForm(account: SocialAccountInfo) {
     setEditingId(account.id);
     setForm({
       platform: account.platform as SocialPlatform,
       displayName: account.displayName,
       username: account.username,
       profileUrl: account.profileUrl ?? '',
+      credential: account.decryptedCredential ?? '',
     });
     setError('');
     setFormOpen(true);
@@ -221,6 +241,15 @@ export function SocialAccountsManager({ initialAccounts }: SocialAccountsManager
                 value={form.profileUrl}
                 onChange={(e) => setForm((prev) => ({ ...prev, profileUrl: e.target.value }))}
                 placeholder={`https://${PLATFORM_META[form.platform].shortLabel.toLowerCase()}.com/kamu`}
+              />
+            </label>
+            <label className="social-field social-field-wide">
+              <span>Credentials</span>
+              <input
+                type="text"
+                value={form.credential}
+                onChange={(e) => setForm((prev) => ({ ...prev, credential: e.target.value }))}
+                placeholder="place-your-credentials-here"
               />
             </label>
           </div>

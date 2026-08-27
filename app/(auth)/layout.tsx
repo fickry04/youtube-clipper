@@ -4,7 +4,7 @@ import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
 
 export const metadata: Metadata = {
-  title: 'Authentication — YouTube Viral Clipper',
+  title: 'Authentication — YouTube Clipper',
 };
 
 export default async function AuthLayout({

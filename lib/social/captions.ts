@@ -33,9 +33,8 @@ Platform voice guidelines:
 
 Hard rules:
 - "hook" is the attention-grabbing title line; respect each platform's maxHookChars.
-- "description" is the body text; keep within maxDescriptionChars INCLUDING any hashtags you inline.
+- "description" is the body text with a few hashtags on it; keep within maxDescriptionChars INCLUDING any hashtags you inline.
 - Always include ALL five platform keys (YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS).
-- "hashtags" is an array of strings starting with "#", no spaces, matching the recommended count range per platform.
 - Indonesian language for all copy. Never mention that you are an AI.`;
 
 function buildUserPrompt(ctx: ClipCaptionContext): string {
@@ -56,7 +55,7 @@ function buildUserPrompt(ctx: ClipCaptionContext): string {
   lines.push(
     '',
     `Use this exact JSON structure (keys must be exactly ${SOCIAL_PLATFORMS.join(', ')}), also put the hashtags on description too:`,
-    '{"YOUTUBE": {"hook": "...", "description": "...", "hashtags": ["#..."]}, "TIKTOK": {...}, "INSTAGRAM": {...}, "X": {...}, "THREADS": {...}}'
+    '{"YOUTUBE": {"hook": "...", "description": "...", "TIKTOK": {...}, "INSTAGRAM": {...}, "X": {...}, "THREADS": {...}}'
   );
   return lines.join('\n');
 }
@@ -64,7 +63,7 @@ function buildUserPrompt(ctx: ClipCaptionContext): string {
 function fallbackCaption(
   ctx: ClipCaptionContext,
   platform: keyof typeof PLATFORM_META
-): { hook: string; description: string; hashtags: string[] } {
+): { hook: string; description: string; } {
   const meta = PLATFORM_META[platform];
   const baseTags = normalizeHashtags([
     ...ctx.clipTitle.split(/\s+/),
@@ -72,11 +71,9 @@ function fallbackCaption(
     'shorts',
     'fyp',
   ]);
-  const tagCount = meta.recommendedHashtags[0];
   return {
     hook: truncateCaption(ctx.hook || ctx.clipTitle, meta.maxHookChars),
-    description: truncateCaption(ctx.summary, Math.max(60, meta.maxDescriptionChars - tagCount * 12)),
-    hashtags: baseTags.slice(0, tagCount),
+    description: truncateCaption(ctx.summary, Math.max(60, meta.maxDescriptionChars)),
   };
 }
 
@@ -92,17 +89,6 @@ export function sanitizeCaptions(raw: unknown, ctx: ClipCaptionContext): Platfor
       : {};
     const fb = fallbackCaption(ctx, platform);
 
-    const [minTags, maxTags] = meta.recommendedHashtags;
-    let hashtags = normalizeHashtags(entry.hashtags, minTags, maxTags);
-    if (hashtags.length < minTags) {
-      // Top up from fallback tags so every platform has usable hashtags.
-      for (const tag of fb.hashtags) {
-        if (hashtags.length >= minTags) break;
-        if (!hashtags.includes(tag)) hashtags.push(tag);
-      }
-      hashtags = hashtags.slice(0, maxTags);
-    }
-
     result[platform] = {
       hook: truncateCaption(
         typeof entry.hook === 'string' && entry.hook.trim() ? entry.hook : fb.hook,
@@ -114,7 +100,6 @@ export function sanitizeCaptions(raw: unknown, ctx: ClipCaptionContext): Platfor
           : fb.description,
         meta.maxDescriptionChars
       ),
-      hashtags,
     };
   }
   return result;
@@ -162,7 +147,6 @@ export function parseCachedCaptions(raw: unknown): PlatformCaptionMap | null {
     result[platform] = {
       hook: typeof e.hook === 'string' ? e.hook : '',
       description: typeof e.description === 'string' ? e.description : '',
-      hashtags: normalizeHashtags(e.hashtags),
     };
   }
   return Object.keys(result).length > 0 ? result : null;
