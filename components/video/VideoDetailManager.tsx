@@ -7,6 +7,7 @@ import { AnalyzeTrigger } from './AnalyzeTrigger';
 import { GenerateSubtitleButton } from './GenerateSubtitleButton';
 import { CropFaceButton } from './CropFaceButton';
 import { ExpandedPhoneModal } from './ExpandedPhoneModal';
+import { PostSocialButton } from '@/components/social/PostSocialButton';
 
 import type { TranscriptSegment } from '@/lib/types';
 import { parseTranscriptSegments } from '@/lib/utils';
@@ -1116,6 +1117,8 @@ export function VideoDetailManager({
                                     ]);
                                   }}
                                 />
+
+                                <PostSocialButton clip={clip} />
                               </div>
 
                               {clip.hasVertical && (

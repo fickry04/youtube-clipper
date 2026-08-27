@@ -25,6 +25,7 @@ export function Navbar({ user }: NavbarProps) {
   const navLinks = [
     { href: '/dashboard', label: 'Dashboard' },
     { href: '/dashboard/projects', label: 'Projects' },
+    { href: '/dashboard/accounts', label: 'Social Accounts' },
   ];
 
   return (

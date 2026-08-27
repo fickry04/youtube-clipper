@@ -19,10 +19,11 @@ model User {
   image         String?
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
-  sessions      Session[]
-  accounts      Account[]
-  projects      Project[]
-  jobs          Job[]
+  sessions       Session[]
+  accounts       Account[]
+  projects       Project[]
+  jobs           Job[]
+  socialAccounts SocialAccount[]
 
   @@unique([email])
   @@map("user")
@@ -186,6 +187,7 @@ model Clip {
   weaknesses       String[]
   processingStatus String        @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
   processingError  String?
+  socialCaptions   Json? // Per-platform AI captions: { YOUTUBE: { hook, description, hashtags[] }, ... }
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
@@ -255,4 +257,23 @@ model Job {
   @@index([userId])
   @@index([videoId])
   @@index([status])
+}
+
+// =============================================================================
+// SOCIAL MEDIA MODELS
+// =============================================================================
+
+model SocialAccount {
+  id          String   @id @default(cuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  platform    String // YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS
+  displayName String // e.g. "Akun Utama"
+  username    String // handle without "@"
+  profileUrl  String?
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([userId])
 }
