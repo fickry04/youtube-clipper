@@ -6025,8 +6025,9 @@ body {
 
 .post-publish-row {
   display: flex;
+  flex-direction: column;
   flex-wrap: wrap;
-  gap: 9px;
+  gap: 16;
   margin-top: 2px;
 }
 
@@ -6034,6 +6035,7 @@ body {
   display: inline-flex;
   align-items: center;
   gap: 9px;
+  max-width: fit-content;
   padding: 11px 20px;
   border-radius: var(--radius-md);
   border: none;

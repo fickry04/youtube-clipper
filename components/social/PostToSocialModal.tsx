@@ -436,18 +436,6 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
                   >
                     {copiedKey === `all:${activePlatform}` ? '✓ Tersalin' : 'Salin Semua'}
                   </button>
-                </div>
-
-                <div className="post-publish-row">
-                  <button
-                    type="button"
-                    className="post-upload-cta"
-                    style={pfStyle(activeMeta.color, activeMeta.color2 ?? activeMeta.color)}
-                    onClick={() => handleCopyAndOpen(activePlatform)}
-                  >
-                    <PlatformIcon platform={activePlatform} size={15} />
-                    Salin Caption &amp; Buka {activeMeta.label} ↗
-                  </button>
                   <button
                     type="button"
                     className="post-regenerate-btn"
@@ -459,6 +447,27 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
                       <polyline points="21 3 21 9 15 9" />
                     </svg>
                     Regenerate AI
+                  </button>
+                </div>
+
+                <div className="post-publish-row">
+                  <button
+                    type="button"
+                    className="post-upload-cta"
+                    style={pfStyle(activeMeta.color, activeMeta.color2 ?? activeMeta.color)}
+                    onClick={() => handleCopyAndOpen(activePlatform)}
+                  >
+                    <PlatformIcon platform={activePlatform} size={15} />
+                    Salin Caption &amp; Buka {activeMeta.shortLabel} ↗
+                  </button>
+                  <button
+                    type="button"
+                    className="post-upload-cta"
+                    style={pfStyle(activeMeta.color, activeMeta.color2 ?? activeMeta.color)}
+                    onClick={() => window.alert('WIP')}
+                  >
+                    <PlatformIcon platform={activePlatform} size={15} />
+                    Post Video Otomatis ↗
                   </button>
                 </div>
               </>
