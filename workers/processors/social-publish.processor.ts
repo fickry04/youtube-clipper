@@ -1,216 +1,114 @@
-import type { Job as BullJob } from 'bullmq';
+import path from 'node:path';
+
 import prisma from '@/lib/prisma';
-
-import type {
-  SocialPlatform,
-} from '@/lib/social/platforms';
-
-// import {
-//   publishYouTube,
-// } from './social/youtube';
-
-// import {
-//   publishTikTok,
-// } from './social/tiktok';
-
-// import {
-//   publishInstagram,
-// } from './social/instagram';
-
-// import {
-//   publishX,
-// } from './social/x';
-
-// import {
-//   publishThreads,
-// } from './social/threads';
-
-// import {
-//   publishFacebook,
-// } from './social/facebook';
-
-interface SocialPublishJobPayload {
-  clipId: string;
-  accountId: string;
-
-  platform: SocialPlatform;
-
-  caption: {
-    hook: string;
-    description: string;
-  };
-
-  videoVariant:
-  | 'ORIGINAL'
-  | 'VERTICAL'
-  | 'VERTICAL_SUBTITLED';
-}
+import {
+  getValidYoutubeCredentials,
+  uploadVideoToYouTube,
+} from '@/workers/processors/social/youtube.processor';
+import { Job } from 'bullmq';
+import type { SocialPublishJobPayload } from '@/lib/queue/jobs';
 
 export async function processSocialPublish(
-  bullJob: BullJob,
-) {
-  const { jobId } = bullJob.data;
+  job: Job<SocialPublishJobPayload>,
+): Promise<{ success: boolean; videoId?: string }> {
+  const {
+    userId,
+    clipId,
+    accountId,
+    caption,
+    platform,
+    videoVariant,
+  } = job.data;
 
-  const job = await prisma.job.findUnique({
+  // 1. Ambil social account
+  const account = await prisma.socialAccount.findFirst({
     where: {
-      id: jobId,
+      id: accountId,
     },
   });
 
-  if (!job) {
-    throw new Error(
-      `Database job ${jobId} tidak ditemukan.`,
-    );
+  if (!account || !account.encryptedCredential) {
+    throw new Error('Social account not found or not authorized');
   }
 
-  const payload = job.payload as unknown as SocialPublishJobPayload;
-
-  await prisma.job.update({
+  // 2. Ambil clip
+  const clip = await prisma.clip.findFirst({
     where: {
-      id: jobId,
-    },
-    data: {
-      status: 'PROCESSING',
-      progress: 5,
-      startedAt: new Date(),
-      attempts: {
-        increment: 1,
-      },
+      id: clipId,
     },
   });
 
-  try {
-    const account =
-      await prisma.socialAccount.findUnique({
-        where: {
-          id: payload.accountId,
-        },
-      });
-
-    if (!account) {
-      throw new Error(
-        'Social account tidak ditemukan.',
-      );
-    }
-
-    const videoUrl = buildInternalVideoUrl(
-      payload.clipId,
-      payload.videoVariant,
-    );
-
-    let result;
-
-    // switch (payload.platform) {
-    //   case 'YOUTUBE':
-    //     result = await publishYouTube({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   case 'TIKTOK':
-    //     result = await publishTikTok({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   case 'INSTAGRAM':
-    //     result = await publishInstagram({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   case 'X':
-    //     result = await publishX({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   case 'THREADS':
-    //     result = await publishThreads({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   case 'FACEBOOK':
-    //     result = await publishFacebook({
-    //       account,
-    //       videoUrl,
-    //       caption: payload.caption,
-    //     });
-    //     break;
-
-    //   default:
-    //     throw new Error(
-    //       `Platform tidak didukung: ${payload.platform}`,
-    //     );
-    // }
-
-    await prisma.job.update({
-      where: {
-        id: jobId,
-      },
-      data: {
-        status: 'COMPLETED',
-        progress: 100,
-        completedAt: new Date(),
-
-        payload: {
-          ...payload,
-          result,
-        },
-      },
-    });
-
-    return result;
-  } catch (error) {
-    const message =
-      error instanceof Error
-        ? error.message
-        : 'Unknown error';
-
-    await prisma.job.update({
-      where: {
-        id: jobId,
-      },
-      data: {
-        status: 'FAILED',
-        error: message,
-      },
-    });
-
-    throw error;
+  if (!clip) {
+    throw new Error('Clip not found');
   }
-}
 
-function buildInternalVideoUrl(
-  clipId: string,
-  variant: SocialPublishJobPayload['videoVariant'],
-): string {
-  const baseUrl =
-    process.env.APP_URL ??
-    'http://localhost:3000';
+  // 3. Tentukan nama file berdasarkan variant
+  let fileName: string;
 
-  switch (variant) {
-    case 'ORIGINAL':
-      return `${baseUrl}/api/clips/${clipId}/video`;
+  switch (videoVariant) {
+    case 'VERTICAL_SUBTITLED':
+      fileName = 'clip_vertical_subtitled.mp4';
+      break;
 
     case 'VERTICAL':
-      return `${baseUrl}/api/clips/${clipId}/vertical`;
+      fileName = 'clip_vertical.mp4';
+      break;
 
-    case 'VERTICAL_SUBTITLED':
-      return (
-        `${baseUrl}/api/clips/${clipId}/vertical` +
-        '?subtitled=true'
+    case 'ORIGINAL':
+      fileName = 'clip.mp4';
+      break;
+
+    default:
+      throw new Error(
+        `Unsupported video variant: ${videoVariant}`,
       );
   }
+
+  // 4. Tentukan path video
+  const storageRoot =
+    process.env.STORAGE_PATH || path.join(process.cwd(), 'storage');
+
+  const videoPath = path.join(
+    storageRoot,
+    'users',
+    userId,
+    'clips',
+    clip.id,
+    fileName,
+  );
+
+  console.log(
+    `[Worker] Video path: ${videoPath}`,
+  );
+
+  // 5. Upload ke platform
+  if (platform === 'YOUTUBE') {
+    console.log(
+      `[Worker] Uploading clip ${clipId} to YouTube using ${videoVariant} variant...`,
+    );
+
+    const accessToken = await getValidYoutubeCredentials(
+      account.encryptedCredential,
+    );
+
+    const videoId = await uploadVideoToYouTube(
+      accessToken,
+      videoPath,
+      caption.hook,
+      caption.description,
+    );
+
+    console.log(
+      `[Worker] Successfully uploaded clip ${clipId} to YouTube. Video ID: ${videoId}`,
+    );
+
+    return {
+      success: true,
+      videoId,
+    };
+  }
+
+  throw new Error(
+    `Platform ${platform} is not supported yet`,
+  );
 }

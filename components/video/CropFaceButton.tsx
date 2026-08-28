@@ -72,6 +72,18 @@ export function CropFaceButton({
     setError('');
     setLoadingManual(true);
     setShowManualModal(false);
+    if (onJobStarted) {
+      onJobStarted({
+        id: "temp_job_id", // biar keren aja langsung muncul sebenarnya perlu refresh
+        type: 'MANUAL_CROP',
+        status: 'PROCESSING',
+        progress: 5,
+        error: null,
+        createdAt: new Date().toISOString(),
+        completedAt: null,
+      });
+    }
+
     try {
       const res = await fetch(`/api/clips/${clipId}/crop-manual`, {
         method: 'POST',
@@ -105,13 +117,12 @@ export function CropFaceButton({
           id: data.jobId,
           type: 'MANUAL_CROP',
           status: 'QUEUED',
-          progress: 5,
+          progress: 10,
           error: null,
           createdAt: new Date().toISOString(),
           completedAt: null,
         });
       }
-      setShowManualModal(false);
       router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan saat manual crop.');

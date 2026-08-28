@@ -87,16 +87,15 @@ export interface FaceDetectionPayload {
 }
 
 export interface SocialPublishJobPayload {
+  jobId: string;
+  userId: string;
   clipId: string;
   accountId: string;
-
   platform: SocialPlatform;
-
   caption: {
     hook: string;
     description: string;
   };
-
   videoVariant:
   | 'ORIGINAL'
   | 'VERTICAL'

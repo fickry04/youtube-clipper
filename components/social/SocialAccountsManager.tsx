@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { PLATFORM_META, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
-import { decryptJson } from '@/lib/crypto';
 
 export interface SocialAccountInfo {
   id: string;
@@ -16,12 +15,8 @@ export interface SocialAccountInfo {
   decryptedCredential?: string;
 }
 
-interface SocialAccountsManagerProps {
-  initialAccounts: SocialAccountInfo[];
-}
-
 const EMPTY_FORM = {
-  platform: 'YOUTUBE' as SocialPlatform,
+  platform: 'TIKTOK' as SocialPlatform,
   displayName: '',
   username: '',
   profileUrl: '',
@@ -75,6 +70,10 @@ export function SocialAccountsManager() {
   }
 
   function openCreateForm(platform?: SocialPlatform) {
+    if (platform === 'YOUTUBE') {
+      window.location.href = '/api/social-accounts/google';
+      return;
+    }
     setEditingId(null);
     setForm({ ...EMPTY_FORM, ...(platform ? { platform } : {}) });
     setError('');
@@ -202,7 +201,8 @@ export function SocialAccountsManager() {
                 <button
                   key={platform}
                   type="button"
-                  onClick={() => setForm((prev) => ({ ...prev, platform }))}
+                  // Disable click jika youtube, dan arahkan ke openCreateForm('YOUTUBE')
+                  onClick={() => platform === 'YOUTUBE' ? openCreateForm('YOUTUBE') : setForm((prev) => ({ ...prev, platform }))}
                   className={`platform-tile ${active ? 'is-active' : ''}`}
                   style={pfStyle(meta.color, meta.color2 ?? meta.color)}
                 >

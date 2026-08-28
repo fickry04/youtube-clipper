@@ -2,7 +2,7 @@ import type { NextRequest } from 'next/server';
 import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { extractVideoId } from '@/lib/utils';
-import { fetchYoutubeVideoInfo } from '@/lib/youtube';
+import { fetchYoutubeVideoInfo } from '@/lib/fetch-youtube';
 import { z } from 'zod';
 
 const CreateVideoSchema = z.object({

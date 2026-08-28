@@ -1,18 +1,5 @@
 import { spawn } from 'child_process';
-import { existsSync } from 'fs';
-import * as path from 'path';
 import type { YoutubeVideoMetadata } from './types';
-
-function getCookiesPath(): string | null {
-  if (process.env.YTDLP_COOKIES_PATH && existsSync(process.env.YTDLP_COOKIES_PATH)) {
-    return process.env.YTDLP_COOKIES_PATH;
-  }
-  const rootCookies = path.join(process.cwd(), 'cookies.txt');
-  if (existsSync(rootCookies)) {
-    return rootCookies;
-  }
-  return null;
-}
 
 /**
  * Server-only helper to fetch YouTube video metadata.
@@ -48,7 +35,6 @@ export async function fetchYoutubeVideoInfo(youtubeUrl: string, youtubeId: strin
   // 2. yt-dlp safe child process for duration, description, etc.
   try {
     const ytdlpBin = process.env.YTDLP_PATH ?? 'yt-dlp';
-    const cookiesPath = getCookiesPath();
     const ytdlpResult = await new Promise<{
       duration?: number;
       duration_string?: string;
@@ -65,9 +51,7 @@ export async function fetchYoutubeVideoInfo(youtubeUrl: string, youtubeId: strin
           '--no-playlist',
           '--js-runtimes',
           'node',
-          ...(cookiesPath
-            ? ['--cookies', cookiesPath]
-            : ['--extractor-args', 'youtube:player_client=web_embedded']),
+          '--extractor-args', 'youtube:player_client=web_embedded',
           youtubeUrl,
         ],
         { timeout: 8000 }

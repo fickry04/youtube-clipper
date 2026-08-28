@@ -113,6 +113,7 @@ export function VideoDetailManager({
   const subtitleJob = jobs.find((j) => j.type === 'GENERATE_SUBTITLE');
   const manualCropJob = jobs.find((j) => j.type === 'MANUAL_CROP');
   const aiTranscriptJob = jobs.find((j) => j.type === 'AI_TRANSCRIPT');
+  const aiPublishJob = jobs.find((j) => j.type === 'SOCIAL_PUBLISH');
 
   const isJobRunning = jobs.some(
     (j) => j.status === 'QUEUED' || j.status === 'PROCESSING'
@@ -814,6 +815,101 @@ export function VideoDetailManager({
                   }}
                 >
                   {subtitleJob.status !== 'COMPLETED' && subtitleJob.status !== 'FAILED' && (
+                    <div className="progress-fill-stripes" />
+                  )}
+                </div>
+              </div>
+            </div>
+          </aside>
+        )}
+
+        {/* AI Publishing Progress Toast */}
+        {aiPublishJob && !dismissedToastIds[aiPublishJob.id] && (
+          <aside
+            className={`sticky-progress-toast ${closingToastIds[aiPublishJob.id] ? 'toast-exit' : ''}`}
+            role="status"
+            aria-live="polite"
+            aria-label="Download and clipping progress"
+          >
+            <div className="sticky-toast-header">
+              <div className="sticky-toast-title-wrap">
+                {aiPublishJob.status === 'COMPLETED' ? (
+                  <div className="sticky-toast-icon-completed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  </div>
+                ) : aiPublishJob.status === 'FAILED' ? (
+                  <div className="sticky-toast-icon-failed">
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
+                      <line x1="12" y1="9" x2="12" y2="13" />
+                      <line x1="12" y1="17" x2="12.01" y2="17" />
+                    </svg>
+                  </div>
+                ) : (
+                  <div className="sticky-toast-icon-processing">
+                    <span className="auth-spinner" style={{ width: '13px', height: '13px', borderWidth: '2px' }} />
+                  </div>
+                )}
+
+                <span className="sticky-toast-title">
+                  {aiPublishJob.status === 'COMPLETED'
+                    ? 'Video Posting to Social Media Finished'
+                    : aiPublishJob.status === 'FAILED'
+                      ? 'Video Posting to Social Media Failed'
+                      : aiPublishJob.status === 'QUEUED'
+                        ? 'Queued in Clipper Worker…'
+                        : 'Posting Clips to Social Media…'}
+                </span>
+              </div>
+
+              <button
+                onClick={() => dismissToastWithAnimation(aiPublishJob.id)}
+                className="sticky-toast-close-btn"
+                title="Tutup notifikasi"
+                aria-label="Close notification"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" />
+                  <line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="sticky-toast-body">
+              <div className="sticky-toast-info">
+                <span className="sticky-toast-status-text">
+                  {aiPublishJob.status === 'COMPLETED'
+                    ? 'Video Posted Successfully.'
+                    : aiPublishJob.status === 'FAILED'
+                      ? (aiPublishJob.error || 'Failed to post Video')
+                      : (aiPublishJob.progress || 0) < 25
+                        ? 'Verifying video...'
+                        : (aiPublishJob.progress || 0) < 45
+                          ? 'Posting to Social Media...'
+                          : (aiPublishJob.progress || 0) < 93
+                            ? 'Finishing'
+                            : 'Saving...'}
+                </span>
+                <span className="sticky-toast-pct" style={{ color: '#4ade80' }}>
+                  {aiPublishJob.status === 'COMPLETED' ? '100%' : `${aiPublishJob.progress || 0}%`}
+                </span>
+              </div>
+              <div className="progress-track" style={{ height: '6px' }}>
+                <div
+                  className="progress-fill"
+                  style={{
+                    width: aiPublishJob.status === 'COMPLETED' ? '100%' : `${aiPublishJob.progress}%`,
+                    background:
+                      aiPublishJob.status === 'COMPLETED'
+                        ? 'linear-gradient(90deg, #10b981, #34d399)'
+                        : aiPublishJob.status === 'FAILED'
+                          ? '#ef4444'
+                          : 'var(--accent-gradient-warm)',
+                  }}
+                >
+                  {aiPublishJob.status !== 'COMPLETED' && aiPublishJob.status !== 'FAILED' && (
                     <div className="progress-fill-stripes" />
                   )}
                 </div>

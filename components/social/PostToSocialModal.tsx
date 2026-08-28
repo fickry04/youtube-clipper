@@ -19,11 +19,12 @@ import {
 } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
 import type { SocialAccountInfo } from './SocialAccountsManager';
-import type { ClipInfo } from '../video/VideoDetailManager';
+import type { ClipInfo, JobInfo } from '../video/VideoDetailManager';
 
 interface PostToSocialModalProps {
   clip: ClipInfo;
   onClose: () => void;
+  onAIPublishingStarted?: (job: JobInfo) => void;
 }
 
 type Drafts = PlatformCaptionMap;
@@ -63,7 +64,7 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
-export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
+export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: PostToSocialModalProps) {
   const mounted = useSyncExternalStore(
     emptySubscribe,
     () => true,
@@ -256,14 +257,16 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
               'Content-Type': 'application/json',
             },
             body: JSON.stringify({
+              clipId: clip.id,
               platform: activePlatform,
               accountId: account.id,
               caption: {
                 hook: draft.hook,
                 description: draft.description,
               },
+              videoVariant: selectedVideoVariant,
             }),
-          },
+          }
         );
 
         const data = await response.json();
@@ -274,10 +277,18 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
           );
         }
 
-        console.log(
-          `${activePlatform} berhasil diposting`,
-          data,
-        );
+        if (onAIPublishingStarted && data.jobId) {
+          onAIPublishingStarted({
+            id: data.jobId,
+            type: 'SOCIAL_PUBLISH',
+            status: 'QUEUED',
+            progress: 5,
+            error: null,
+            createdAt: new Date().toISOString(),
+            completedAt: null,
+          });
+        }
+
       } catch (error) {
         console.error(
           `Gagal posting ${activePlatform}`,
@@ -287,10 +298,19 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
     }
   }
 
-  const videoSrc = clip.hasVerticalSubtitled
-    ? `/api/clips/${clip.id}/vertical?subtitled=true`
-    : clip.hasVertical ? `/api/clips/${clip.id}/vertical` : `/api/clips/${clip.id}/video`;
-  const downloadFilename = `clip_${clip.rank}_${clip.hasVertical ? '9-16' : '16-9'}_${clip.startTime.replace(':', '-')}.mp4`;
+  // Logika if-else sederhana untuk mendapatkan videoSrc dan videoVariant
+  let videoSrc = `/api/clips/${clip.id}/video`;
+  let selectedVideoVariant: 'ORIGINAL' | 'VERTICAL' | 'VERTICAL_SUBTITLED' = 'ORIGINAL';
+  let downloadFilename = `clip_${clip.rank}_${clip.startTime.replace(':', '-')}.mp4`;
+
+  if (clip.hasVerticalSubtitled) {
+    videoSrc = `/api/clips/${clip.id}/vertical?subtitled=true`;
+    selectedVideoVariant = 'VERTICAL_SUBTITLED';
+  } else if (clip.hasVertical) {
+    videoSrc = `/api/clips/${clip.id}/vertical`;
+    selectedVideoVariant = 'VERTICAL';
+    downloadFilename = `clip_${clip.rank}_${clip.hasVertical ? '9-16' : '16-9'}_${clip.startTime.replace(':', '-')}.mp4`;
+  }
 
   if (!mounted) return null;
 

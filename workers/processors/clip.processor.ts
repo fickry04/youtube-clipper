@@ -21,17 +21,6 @@ import type { CreateClipsPayload } from '../../lib/queue/jobs';
 
 const YTDLP_BIN = process.env.YTDLP_PATH ?? 'yt-dlp';
 
-function getCookiesPath(): string | null {
-  if (process.env.YTDLP_COOKIES_PATH && existsSync(process.env.YTDLP_COOKIES_PATH)) {
-    return process.env.YTDLP_COOKIES_PATH;
-  }
-  const rootCookies = path.join(process.cwd(), 'cookies.txt');
-  if (existsSync(rootCookies)) {
-    return rootCookies;
-  }
-  return null;
-}
-
 async function downloadClipSection(
   youtubeUrl: string,
   startSec: number,
@@ -39,7 +28,6 @@ async function downloadClipSection(
   outputPattern: string,
   onProgress?: (percent: number) => void
 ): Promise<void> {
-  const cookiesPath = getCookiesPath();
 
   const args = [
     '-4',
@@ -56,9 +44,7 @@ async function downloadClipSection(
     '--js-runtimes',
     'node',
     '--newline',
-    ...(cookiesPath
-      ? ['--cookies', cookiesPath]
-      : ['--extractor-args', 'youtube:player_client=web_embedded']),
+    '--extractor-args', 'youtube:player_client=web_embedded',
     youtubeUrl,
   ];
 

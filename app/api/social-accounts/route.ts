@@ -3,6 +3,7 @@ import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
 import { z } from 'zod';
 import { decryptJson, encryptJson } from '@/lib/crypto';
+import { GoogleTokens } from '@/workers/processors/social/youtube.processor';
 
 const CreateSocialAccountSchema = z.object({
   platform: z.enum(['YOUTUBE', 'TIKTOK', 'INSTAGRAM', 'X', 'THREADS', 'FACEBOOK']),
@@ -35,7 +36,11 @@ export async function GET(): Promise<Response> {
       if (!account.encryptedCredential) {
         return account;
       }
-      const decryptedCredential = await decryptJson(account.encryptedCredential);
+      let decryptedCredential: any = {};
+      if (account.platform === 'YOUTUBE') {
+        decryptedCredential = await decryptJson<GoogleTokens>(account.encryptedCredential);
+        decryptedCredential = JSON.stringify(decryptedCredential);
+      }
       return {
         ...account,
         decryptedCredential: decryptedCredential,
