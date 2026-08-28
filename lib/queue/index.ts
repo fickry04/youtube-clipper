@@ -57,6 +57,7 @@ function getQueues(): Record<string, Queue> {
       [QUEUE_NAMES.FACE_DETECTION]: createQueue(QUEUE_NAMES.FACE_DETECTION),
       [QUEUE_NAMES.MANUAL_CROP]: createQueue(QUEUE_NAMES.MANUAL_CROP),
       [QUEUE_NAMES.AI_TRANSCRIPT]: createQueue(QUEUE_NAMES.AI_TRANSCRIPT),
+      [QUEUE_NAMES.SOCIAL_PUBLISH]: createQueue(QUEUE_NAMES.SOCIAL_PUBLISH),
     };
   }
   return globalForQueues.queues;

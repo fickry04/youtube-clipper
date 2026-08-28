@@ -158,3 +158,15 @@ export function truncateCaption(text: string, limit: number): string {
   const lastSpace = cut.lastIndexOf(' ');
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
 }
+
+export interface PublishVideoInput {
+  platform: SocialPlatform;
+  accountId: string;
+
+  caption: {
+    hook?: string;
+    description: string;
+  };
+
+  videoUrl: string;
+}

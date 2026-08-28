@@ -65,34 +65,13 @@ export async function transcribeClipLocally(
       },
     });
 
-    // Possible JSON output file locations produced by whisper.cpp
-    const candidates = [
-      `${opts.mediaPath}.wav.json`,
-      `${opts.mediaPath}.json`,
-      path.join(
-        path.dirname(opts.mediaPath),
-        `${path.basename(opts.mediaPath, path.extname(opts.mediaPath))}.wav.json`
-      ),
-      path.join(
-        path.dirname(opts.mediaPath),
-        `${path.basename(opts.mediaPath, path.extname(opts.mediaPath))}.json`
-      ),
-    ];
-
-    let jsonPath: string | null = null;
-    for (const cand of candidates) {
-      if (existsSync(cand)) {
-        jsonPath = cand;
-        break;
-      }
-    }
-
+    let jsonPath: string = path.join(path.dirname(opts.mediaPath), `${path.basename(opts.mediaPath, path.extname(opts.mediaPath))}.wav.json`);
     if (jsonPath) {
       const rawJsonStr = await fs.readFile(jsonPath, 'utf-8');
       const rawData = JSON.parse(rawJsonStr);
 
       // Clean up temporary json file
-      await fs.unlink(jsonPath).catch(() => {});
+      await fs.unlink(jsonPath).catch(() => { });
 
       const rawWords: WordTimestamp[] = [];
       const transcription = rawData.transcription || rawData.result || [];

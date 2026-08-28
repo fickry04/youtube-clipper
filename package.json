@@ -27,6 +27,7 @@
     "better-auth": "^1.7.1",
     "bullmq": "^6.1.2",
     "canvas": "^3.2.3",
+    "google-auth-library": "^11.0.2",
     "googleapis": "^176.0.0",
     "ioredis": "^6.0.0",
     "next": "16.3.1",

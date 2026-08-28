@@ -78,7 +78,6 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
   const [generateError, setGenerateError] = useState('');
   const [activePlatform, setActivePlatform] = useState<SocialPlatform>('YOUTUBE');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-  const [tagInput, setTagInput] = useState('');
 
   // Pause background page videos while the modal is open
   const pausedVideosRef = useRef<HTMLVideoElement[]>([]);
@@ -227,6 +226,65 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
       else next.add(accountId);
       return next;
     });
+  }
+  async function handleAutoPublish() {
+    if (!activePlatform) return;
+
+    const selectedAccounts = accounts?.filter((account) =>
+      selectedAccountIds.has(account.id)
+    );
+
+    if (!selectedAccounts?.length) {
+      window.alert('Pilih akun tujuan terlebih dahulu.');
+      return;
+    }
+
+    const draft = drafts[activePlatform];
+
+    if (!draft) {
+      window.alert('Caption belum tersedia.');
+      return;
+    }
+
+    for (const account of selectedAccounts) {
+      try {
+        const response = await fetch(
+          `/api/clips/${clip.id}/publish`,
+          {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+              platform: activePlatform,
+              accountId: account.id,
+              caption: {
+                hook: draft.hook,
+                description: draft.description,
+              },
+            }),
+          },
+        );
+
+        const data = await response.json();
+
+        if (!response.ok || !data.success) {
+          throw new Error(
+            data.error || 'Gagal memposting video.',
+          );
+        }
+
+        console.log(
+          `${activePlatform} berhasil diposting`,
+          data,
+        );
+      } catch (error) {
+        console.error(
+          `Gagal posting ${activePlatform}`,
+          error,
+        );
+      }
+    }
   }
 
   const videoSrc = clip.hasVerticalSubtitled
@@ -463,11 +521,17 @@ export function PostToSocialModal({ clip, onClose }: PostToSocialModalProps) {
                   <button
                     type="button"
                     className="post-upload-cta"
-                    style={pfStyle(activeMeta.color, activeMeta.color2 ?? activeMeta.color)}
-                    onClick={() => window.alert('WIP')}
+                    style={pfStyle(
+                      activeMeta.color,
+                      activeMeta.color2 ?? activeMeta.color,
+                    )}
+                    onClick={handleAutoPublish}
                   >
-                    <PlatformIcon platform={activePlatform} size={15} />
-                    Post Video Otomatis ↗
+                    <PlatformIcon
+                      platform={activePlatform}
+                      size={15}
+                    />
+                    Post Video Otomatis
                   </button>
                 </div>
               </>

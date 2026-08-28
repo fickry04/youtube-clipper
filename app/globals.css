@@ -1464,6 +1464,8 @@ body {
 
 .clip-card-left {
   display: flex;
+  flex-direction: column;
+  gap: 25px;
   align-items: center;
   justify-content: center;
   background: rgba(0, 0, 0, 0.15);

@@ -1,4 +1,5 @@
 import type { CaptionCue, SubtitleStyleConfig } from '@/remotion/types';
+import { SocialPlatform } from '../social/platforms';
 
 // Job type definitions for BullMQ queues
 // These are used by both the API (to enqueue) and the worker (to process)
@@ -17,7 +18,7 @@ export type JobType =
   | 'CREATE_CLIPS'
   | 'GENERATE_SUBTITLE'
   | 'FACE_DETECTION'
-  | 'GENERATE_EMBEDDING';
+  | 'SOCIAL_PUBLISH';
 
 // Queue names
 export const QUEUE_NAMES = {
@@ -29,6 +30,7 @@ export const QUEUE_NAMES = {
   FACE_DETECTION: 'face-detection',
   MANUAL_CROP: 'manual-crop',
   AI_TRANSCRIPT: 'ai-transcript',
+  SOCIAL_PUBLISH: 'social-publish',
 };
 
 // Payloads for each job type
@@ -84,9 +86,19 @@ export interface FaceDetectionPayload {
   clipId: string;
 }
 
-export interface GenerateEmbeddingPayload {
-  jobId: string;
-  videoId: string;
-  userId: string;
+export interface SocialPublishJobPayload {
   clipId: string;
+  accountId: string;
+
+  platform: SocialPlatform;
+
+  caption: {
+    hook: string;
+    description: string;
+  };
+
+  videoVariant:
+  | 'ORIGINAL'
+  | 'VERTICAL'
+  | 'VERTICAL_SUBTITLED';
 }

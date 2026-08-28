@@ -180,7 +180,7 @@ export function VideoDetailManager({
       }
     };
 
-    const timer = setInterval(pollJobs, 2000);
+    const timer = setInterval(pollJobs, 4000);
     return () => clearInterval(timer);
   }, [isJobRunning, videoId, router]);
 
@@ -1033,6 +1033,7 @@ export function VideoDetailManager({
                               )}
                             </div>
                           </div>
+                          <PostSocialButton clip={clip} />
                         </div>
 
                         {/* Right Column: Clip Details */}
@@ -1117,8 +1118,6 @@ export function VideoDetailManager({
                                     ]);
                                   }}
                                 />
-
-                                <PostSocialButton clip={clip} />
                               </div>
 
                               {clip.hasVertical && (

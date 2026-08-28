@@ -11,6 +11,7 @@ import { getRedisConnection, QUEUE_NAMES } from '../lib/queue';
 import { processClips } from './processors/clip.processor';
 import { processSubtitle } from './processors/subtitle.processor';
 import { processFaceDetection } from './processors/face.processor';
+import { processSocialPublish } from './processors/social-publish.processor';
 
 // ---------------------------------------------------------------------------
 // Worker configuration
@@ -33,19 +34,25 @@ const heavyWorkerOptions = {
 
 const clipWorker = new Worker(
   QUEUE_NAMES.CLIP,
-  async (job) => processClips(job as Parameters<typeof processClips>[0]),
+  async (job) => processClips(job),
   heavyWorkerOptions
 );
 
 const subtitleWorker = new Worker(
   QUEUE_NAMES.SUBTITLE,
-  async (job) => processSubtitle(job as Parameters<typeof processSubtitle>[0]),
+  async (job) => processSubtitle(job),
   heavyWorkerOptions
 );
 
 const faceWorker = new Worker(
   QUEUE_NAMES.FACE_DETECTION,
-  async (job) => processFaceDetection(job as Parameters<typeof processFaceDetection>[0]),
+  async (job) => processFaceDetection(job),
+  heavyWorkerOptions
+);
+
+const socialPublishWorker = new Worker(
+  QUEUE_NAMES.SOCIAL_PUBLISH,
+  async (job) => processSocialPublish(job),
   heavyWorkerOptions
 );
 
@@ -57,6 +64,7 @@ const workers = [
   { worker: clipWorker, name: 'clip' },
   { worker: subtitleWorker, name: 'subtitle' },
   { worker: faceWorker, name: 'face' },
+  { worker: socialPublishWorker, name: 'social-publish' },
 ];
 
 for (const { worker, name } of workers) {
