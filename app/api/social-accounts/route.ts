@@ -36,7 +36,7 @@ export async function GET(): Promise<Response> {
       if (!account.encryptedCredential) {
         return account;
       }
-      let decryptedCredential: any = {};
+      let decryptedCredential = {};
       if (account.platform === 'YOUTUBE') {
         decryptedCredential = await decryptJson<GoogleTokens>(account.encryptedCredential);
         decryptedCredential = JSON.stringify(decryptedCredential);

@@ -92,53 +92,6 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
   },
 };
 
-/**
- * Validate an arbitrary value into a SocialPlatform.
- * Returns null when the value is not one of the supported platforms.
- */
-export function normalizePlatform(value: unknown): SocialPlatform | null {
-  if (typeof value !== 'string') return null;
-  const upper = value.trim().toUpperCase();
-  return (SOCIAL_PLATFORMS as readonly string[]).includes(upper)
-    ? (upper as SocialPlatform)
-    : null;
-}
-
-/** Hashtag form: "#" + letters/digits/underscore, no spaces. */
-const HASHTAG_ALLOWED = /^[A-Za-z0-9_]+$/u;
-
-function toHashtag(raw: string): string | null {
-  let tag = raw.trim().replace(/^#+/u, '').replace(/\s+/gu, '');
-  if (!tag || !HASHTAG_ALLOWED.test(tag)) return null;
-  // Collapse to a sane length so a runaway tag cannot blow up a post.
-  tag = tag.slice(0, 40);
-  return `#${tag}`;
-}
-
-/** Normalize arbitrary hashtag input ("tag", "#Tag", "tag #one two") into canonical "#tag" strings. */
-export function normalizeHashtags(input: unknown, min = 0, max = 15): string[] {
-  const rawItems = Array.isArray(input)
-    ? input
-    : typeof input === 'string'
-      ? input.split(/[\s,]+/)
-      : [];
-  const tags: string[] = [];
-  for (const item of rawItems) {
-    if (typeof item !== 'string') continue;
-    const tag = toHashtag(item);
-    if (tag && !tags.includes(tag)) tags.push(tag);
-    if (tags.length >= max) break;
-  }
-  return tags.slice(Math.min(min, tags.length));
-}
-
-/** True when `description` already contains every provided hashtag. */
-export function descriptionHasHashtags(description: string, hashtags: string[]): boolean {
-  if (hashtags.length === 0) return true;
-  const needle = hashtags[hashtags.length - 1];
-  return description.includes(needle);
-}
-
 /** Join hook + description and hashtags into one copy-ready caption block. */
 export function buildFullCaption(caption: PlatformCaption): string {
   const parts = [caption.hook.trim(), '\n'];
@@ -157,16 +110,4 @@ export function truncateCaption(text: string, limit: number): string {
   const cut = trimmed.slice(0, Math.max(1, limit - 1));
   const lastSpace = cut.lastIndexOf(' ');
   return `${(lastSpace > limit * 0.6 ? cut.slice(0, lastSpace) : cut).trimEnd()}…`;
-}
-
-export interface PublishVideoInput {
-  platform: SocialPlatform;
-  accountId: string;
-
-  caption: {
-    hook?: string;
-    description: string;
-  };
-
-  videoUrl: string;
 }

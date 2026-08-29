@@ -4,12 +4,6 @@ import { auth } from '@/lib/auth';
 import { getQueue, QUEUE_NAMES } from '@/lib/queue';
 import { SocialPublishJobPayload } from '@/lib/queue/jobs';
 
-interface RouteContext {
-  params: Promise<{
-    clipId: string;
-  }>;
-}
-
 export async function POST(
   request: NextRequest,
 ) {

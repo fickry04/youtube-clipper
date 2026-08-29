@@ -1,6 +1,5 @@
 import path from 'path';
 import fs from 'fs/promises';
-import { existsSync } from 'fs';
 import { nodewhisper } from 'nodejs-whisper';
 import type { CaptionCue, WordTimestamp } from '../../remotion/types';
 import { generateWordLevelCues, groupWordsIntoCues } from '../transcript/word-timestamps';
@@ -65,7 +64,7 @@ export async function transcribeClipLocally(
       },
     });
 
-    let jsonPath: string = path.join(path.dirname(opts.mediaPath), `${path.basename(opts.mediaPath, path.extname(opts.mediaPath))}.wav.json`);
+    const jsonPath: string = path.join(path.dirname(opts.mediaPath), `${path.basename(opts.mediaPath, path.extname(opts.mediaPath))}.wav.json`);
     if (jsonPath) {
       const rawJsonStr = await fs.readFile(jsonPath, 'utf-8');
       const rawData = JSON.parse(rawJsonStr);

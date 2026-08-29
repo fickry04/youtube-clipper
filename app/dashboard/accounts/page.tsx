@@ -1,7 +1,6 @@
 import { redirect } from 'next/navigation';
 import { getSession } from '@/lib/auth/session';
-import prisma from '@/lib/prisma';
-import { SocialAccountsManager, type SocialAccountInfo } from '@/components/social/SocialAccountsManager';
+import { SocialAccountsManager } from '@/components/social/SocialAccountsManager';
 
 export default async function SocialAccountsPage() {
   const session = await getSession();

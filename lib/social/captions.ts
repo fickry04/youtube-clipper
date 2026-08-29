@@ -2,7 +2,6 @@ import { GoogleGenAI } from '@google/genai';
 import {
   PLATFORM_META,
   SOCIAL_PLATFORMS,
-  normalizeHashtags,
   truncateCaption,
   type PlatformCaptionMap,
 } from './platforms';
@@ -65,12 +64,6 @@ function fallbackCaption(
   platform: keyof typeof PLATFORM_META
 ): { hook: string; description: string; } {
   const meta = PLATFORM_META[platform];
-  const baseTags = normalizeHashtags([
-    ...ctx.clipTitle.split(/\s+/),
-    'viral',
-    'shorts',
-    'fyp',
-  ]);
   return {
     hook: truncateCaption(ctx.hook || ctx.clipTitle, meta.maxHookChars),
     description: truncateCaption(ctx.summary, Math.max(60, meta.maxDescriptionChars)),

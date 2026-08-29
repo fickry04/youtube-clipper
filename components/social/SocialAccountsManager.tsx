@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState, type CSSProperties } from 'react';
 import { PLATFORM_META, SOCIAL_PLATFORMS, type SocialPlatform } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
+import { redirect } from 'next/navigation';
 
 export interface SocialAccountInfo {
   id: string;
@@ -71,8 +72,7 @@ export function SocialAccountsManager() {
 
   function openCreateForm(platform?: SocialPlatform) {
     if (platform === 'YOUTUBE') {
-      window.location.href = '/api/social-accounts/google';
-      return;
+      redirect('/api/social-accounts/google');
     }
     setEditingId(null);
     setForm({ ...EMPTY_FORM, ...(platform ? { platform } : {}) });

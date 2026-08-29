@@ -14,7 +14,6 @@ import { spawn } from 'child_process';
 import * as path from 'path';
 import * as fs from 'fs/promises';
 import * as os from 'os';
-import { existsSync } from 'fs';
 import prisma from '../../lib/prisma';
 import { getStorage, StorageKeys } from '../../lib/storage';
 import type { CreateClipsPayload } from '../../lib/queue/jobs';
