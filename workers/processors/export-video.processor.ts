@@ -90,7 +90,7 @@ export async function processExportVideo(job: Job<ExportVideoPayload>): Promise<
             } else {
                 cues = job.data.cues;
             }
-            console.log(`[Subtitle Worker] Using ${cues.length} preview cues provided directly in job payload for clip ${clipId}.`);
+            console.log(`[Export Worker] Using ${cues.length} preview cues provided directly in job payload for clip ${clipId}.`);
         }
 
         // Check B: Cues saved previously in database

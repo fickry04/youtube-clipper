@@ -110,7 +110,7 @@ export function VideoDetailManager({
   const cutJob = jobs.find((j) => j.type === 'CREATE_CLIPS');
   const faceJob = jobs.find((j) => j.type === 'FACE_DETECTION');
   const analyzeJob = jobs.find((j) => j.type === 'VIRAL_ANALYSIS');
-  const subtitleJob = jobs.find((j) => j.type === 'GENERATE_SUBTITLE');
+  const exportVideoJob = jobs.find((j) => j.type === 'EXPORT_VIDEO');
   const manualCropJob = jobs.find((j) => j.type === 'MANUAL_CROP');
   const aiTranscriptJob = jobs.find((j) => j.type === 'AI_TRANSCRIPT');
   const aiPublishJob = jobs.find((j) => j.type === 'SOCIAL_PUBLISH');
@@ -722,22 +722,22 @@ export function VideoDetailManager({
         )}
 
         {/* Subtitle Generation & Burn-in Progress Toast */}
-        {subtitleJob && !dismissedToastIds[subtitleJob.id] && (
+        {exportVideoJob && !dismissedToastIds[exportVideoJob.id] && (
           <aside
-            className={`sticky-progress-toast ${closingToastIds[subtitleJob.id] ? 'toast-exit' : ''}`}
+            className={`sticky-progress-toast ${closingToastIds[exportVideoJob.id] ? 'toast-exit' : ''}`}
             role="status"
             aria-live="polite"
-            aria-label="Subtitle generation and burn-in progress"
+            aria-label="Export video remotion in-progress"
           >
             <div className="sticky-toast-header">
               <div className="sticky-toast-title-wrap">
-                {subtitleJob.status === 'COMPLETED' ? (
+                {exportVideoJob.status === 'COMPLETED' ? (
                   <div className="sticky-toast-icon-completed">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                       <polyline points="20 6 9 17 4 12" />
                     </svg>
                   </div>
-                ) : subtitleJob.status === 'FAILED' ? (
+                ) : exportVideoJob.status === 'FAILED' ? (
                   <div className="sticky-toast-icon-failed">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3Z" />
@@ -752,24 +752,24 @@ export function VideoDetailManager({
                 )}
 
                 <span className="sticky-toast-title">
-                  {subtitleJob.status === 'COMPLETED'
+                  {exportVideoJob.status === 'COMPLETED'
                     ? 'Remotion Animated Video Generated!'
-                    : subtitleJob.status === 'FAILED'
+                    : exportVideoJob.status === 'FAILED'
                       ? 'Remotion Generation Failed'
-                      : subtitleJob.status === 'QUEUED'
+                      : exportVideoJob.status === 'QUEUED'
                         ? 'Queued in Remotion Worker…'
-                        : (subtitleJob.progress || 0) < 25
+                        : (exportVideoJob.progress || 0) < 25
                           ? 'Checking 9:16 Video & Data…'
-                          : (subtitleJob.progress || 0) < 45
+                          : (exportVideoJob.progress || 0) < 45
                             ? 'Extracting Word Timestamps (AI)…'
-                            : (subtitleJob.progress || 0) < 93
+                            : (exportVideoJob.progress || 0) < 93
                               ? 'Rendering Subtitled Video (Remotion)…'
                               : 'Saving Remotion Animated Video Assets…'}
                 </span>
               </div>
 
               <button
-                onClick={() => dismissToastWithAnimation(subtitleJob.id)}
+                onClick={() => dismissToastWithAnimation(exportVideoJob.id)}
                 className="sticky-toast-close-btn"
                 title="Tutup notifikasi"
                 aria-label="Close notification"
@@ -784,20 +784,20 @@ export function VideoDetailManager({
             <div className="sticky-toast-body">
               <div className="sticky-toast-info">
                 <span className="sticky-toast-status-text">
-                  {subtitleJob.status === 'COMPLETED'
+                  {exportVideoJob.status === 'COMPLETED'
                     ? '9:16 vertical video with Remotion animated captions rendered successfully.'
-                    : subtitleJob.status === 'FAILED'
-                      ? (subtitleJob.error || 'Failed to generate subtitle')
-                      : (subtitleJob.progress || 0) < 25
+                    : exportVideoJob.status === 'FAILED'
+                      ? (exportVideoJob.error || 'Failed to generate subtitle')
+                      : (exportVideoJob.progress || 0) < 25
                         ? 'Verifying 9:16 vertical video and loading clip transcript…'
-                        : (subtitleJob.progress || 0) < 45
+                        : (exportVideoJob.progress || 0) < 45
                           ? 'Extracting word-level timestamps from clip audio…'
-                          : (subtitleJob.progress || 0) < 93
+                          : (exportVideoJob.progress || 0) < 93
                             ? 'Rendering Remotion animated captions composition…'
                             : 'Saving Remotion subtitled video, SRT, and JSON cues…'}
                 </span>
                 <span className="sticky-toast-pct" style={{ color: '#4ade80' }}>
-                  {subtitleJob.status === 'COMPLETED' ? '100%' : `${subtitleJob.progress || 0}%`}
+                  {exportVideoJob.status === 'COMPLETED' ? '100%' : `${exportVideoJob.progress || 0}%`}
                 </span>
               </div>
 
@@ -805,16 +805,16 @@ export function VideoDetailManager({
                 <div
                   className="progress-fill"
                   style={{
-                    width: subtitleJob.status === 'COMPLETED' ? '100%' : `${subtitleJob.progress || 5}%`,
+                    width: exportVideoJob.status === 'COMPLETED' ? '100%' : `${exportVideoJob.progress || 5}%`,
                     background:
-                      subtitleJob.status === 'COMPLETED'
+                      exportVideoJob.status === 'COMPLETED'
                         ? 'linear-gradient(90deg, #10b981, #34d399)'
-                        : subtitleJob.status === 'FAILED'
+                        : exportVideoJob.status === 'FAILED'
                           ? '#ef4444'
                           : 'linear-gradient(90deg, #10b981, #34d399)',
                   }}
                 >
-                  {subtitleJob.status !== 'COMPLETED' && subtitleJob.status !== 'FAILED' && (
+                  {exportVideoJob.status !== 'COMPLETED' && exportVideoJob.status !== 'FAILED' && (
                     <div className="progress-fill-stripes" />
                   )}
                 </div>

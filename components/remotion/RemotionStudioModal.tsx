@@ -1259,23 +1259,20 @@ export function RemotionStudioModal({
                     </div>
                   )}
 
-                  {/* Stroke / Outline Width Slider */}
-                  <div>
+                  {/* Ukuran Font */}
+                  <div style={{ backgroundColor: 'rgba(30, 41, 59, 0.5)', padding: '10px 14px', borderRadius: '10px' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '4px' }}>
-                      <label style={{ fontSize: '0.8rem', fontWeight: 600, color: '#e2e8f0' }}>
-                        Tebal Outline Teks (Stroke)
-                      </label>
-                      <span style={{ fontSize: '0.76rem', color: '#94a3b8' }}>
-                        {config.strokeWidth ?? 4}px
-                      </span>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 600, color: '#cbd5e1' }}>Ukuran Font</span>
+                      <span style={{ fontSize: '0.76rem', fontWeight: 700, color: '#6366f1' }}>{config.fontSize}px</span>
                     </div>
                     <input
                       type="range"
-                      min={0}
-                      max={12}
-                      value={config.strokeWidth ?? 4}
-                      onChange={(e) => setConfig((prev) => ({ ...prev, strokeWidth: Number(e.target.value) }))}
-                      style={{ width: '100%', accentColor: '#6366f1', cursor: 'pointer' }}
+                      min="32"
+                      max="128"
+                      step="2"
+                      value={config.fontSize || 52}
+                      onChange={(e) => setConfig((prev) => ({ ...prev, fontSize: Number(e.target.value) }))}
+                      style={{ width: '100%', accentColor: '#6366f1' }}
                     />
                   </div>
                 </div>
