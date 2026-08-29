@@ -88,6 +88,7 @@ export async function POST(request: NextRequest): Promise<Response> {
       data: {
         youtubeUrl,
         youtubeId,
+        authorName: meta.channel,
         projectId,
         title: meta.title || youtubeId,
         description: meta.description || undefined,

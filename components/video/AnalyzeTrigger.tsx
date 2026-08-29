@@ -21,22 +21,8 @@ export function AnalyzeTrigger({ videoId, hasTranscript, hasAnalysis, onJobStart
     setIsLoading(true);
     setError('');
 
-    if (onJobStarted) {
-      onJobStarted({
-        id: "temp_job_id", // biar keren aja langsung muncul sebenarnya perlu refresh
-        type: 'VIRAL_ANALYSIS',
-        status: 'PROCESSING',
-        progress: 35,
-        error: null,
-        createdAt: new Date().toISOString(),
-        completedAt: null,
-      });
-    }
-
     try {
-      const res = await fetch(`/api/videos/${videoId}/analyze`, {
-        method: 'POST',
-      });
+      const res = await fetch(`/api/videos/${videoId}/analyze`);
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Analysis failed.');

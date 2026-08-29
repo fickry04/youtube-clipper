@@ -6,12 +6,13 @@
  */
 
 import 'dotenv/config'; // load .env before anything else
-import { Worker } from 'bullmq';
+import { Job, Worker } from 'bullmq';
 import { getRedisConnection, QUEUE_NAMES } from '../lib/queue';
 import { processClips } from './processors/clip.processor';
-import { processSubtitle } from './processors/subtitle.processor';
+import { processExportVideo } from './processors/export-video.processor';
 import { processFaceDetection } from './processors/face.processor';
 import { processSocialPublish } from './processors/social-publish.processor';
+import prisma from '@/lib/prisma';
 
 // ---------------------------------------------------------------------------
 // Worker configuration
@@ -38,9 +39,9 @@ const clipWorker = new Worker(
   heavyWorkerOptions
 );
 
-const subtitleWorker = new Worker(
-  QUEUE_NAMES.SUBTITLE,
-  async (job) => processSubtitle(job),
+const exportVideoWorker = new Worker(
+  QUEUE_NAMES.EXPORT_VIDEO,
+  async (job) => processExportVideo(job),
   heavyWorkerOptions
 );
 
@@ -62,7 +63,7 @@ const socialPublishWorker = new Worker(
 
 const workers = [
   { worker: clipWorker, name: 'clip' },
-  { worker: subtitleWorker, name: 'subtitle' },
+  { worker: exportVideoWorker, name: 'export-video' },
   { worker: faceWorker, name: 'face' },
   { worker: socialPublishWorker, name: 'social-publish' },
 ];
@@ -80,6 +81,19 @@ for (const { worker, name } of workers) {
     console.error(`[${name}] Worker error: ${err.message}`);
   });
 }
+
+// ---------------------------------------------------------------------------
+// Set Job Progress
+// ---------------------------------------------------------------------------
+
+export async function setJobProgress(jobId: string, job: Job, progress: number) {
+  await job.updateProgress(progress);
+  await prisma.job.update({
+    where: { id: jobId },
+    data: { progress },
+  }).catch(() => { });
+}
+
 
 // ---------------------------------------------------------------------------
 // Graceful shutdown

@@ -301,5 +301,3 @@ function highlightText(text: string, query: string): React.ReactNode {
     )
   );
 }
-
-// Type declarations for YouTube IFrame API are in lib/youtube-player.d.ts

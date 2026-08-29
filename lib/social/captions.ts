@@ -16,6 +16,7 @@ export interface ClipCaptionContext {
   categories: string[];
   durationSeconds: number;
   videoTitle?: string | null;
+  authorName?: string | null;
   transcriptExcerpt?: string | null;
 }
 
@@ -33,6 +34,7 @@ Platform voice guidelines:
 Hard rules:
 - "hook" is the attention-grabbing title line; respect each platform's maxHookChars.
 - "description" is the body text with a few hashtags on it; keep within maxDescriptionChars INCLUDING any hashtags you inline.
+- "authorName" is the author name, ALWAYS copy this and put it on the last line of the description.
 - Always include ALL five platform keys (YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS).
 - Indonesian language for all copy. Never mention that you are an AI.`;
 
@@ -47,6 +49,7 @@ function buildUserPrompt(ctx: ClipCaptionContext): string {
     `Clip summary: ${ctx.summary}`,
     `Why it went viral: ${ctx.whyViral}`,
     `Categories: ${ctx.categories.join(', ') || '-'}`,
+    `Author name: ${ctx.authorName || '-'}`,
   ];
   if (ctx.transcriptExcerpt) {
     lines.push('', 'Transcript excerpt (may be truncated):', ctx.transcriptExcerpt);

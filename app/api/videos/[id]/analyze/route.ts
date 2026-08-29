@@ -100,7 +100,7 @@ function validateAndSanitize(raw: unknown): ViralAnalysisResult {
   return { overall_summary: obj.overall_summary as string, clips };
 }
 
-export async function POST(
+export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ): Promise<Response> {

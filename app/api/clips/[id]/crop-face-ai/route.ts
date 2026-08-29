@@ -31,9 +31,6 @@ export async function GET(
           video: { project: { userId: session.user.id } },
         },
       },
-      include: {
-        faceDetections: { take: 1 },
-      },
     });
 
     if (!clip) {
@@ -51,7 +48,7 @@ export async function GET(
       success: true,
       clipId,
       hasVertical,
-      hasFaceDetections: clip.faceDetections.length > 0,
+      hasFaceDetections: clip.hasFaceDetection,
     });
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Failed to get crop status.';
@@ -105,7 +102,7 @@ export async function POST(
     const job = await prisma.job.create({
       data: {
         userId: session.user.id,
-        videoId,
+        videoId: videoId,
         type: 'FACE_DETECTION',
         status: 'QUEUED',
         payload: { clipId },

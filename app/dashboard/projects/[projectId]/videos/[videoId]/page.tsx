@@ -50,7 +50,6 @@ export default async function VideoDetailPage({
             include: {
               asset: true,
               subtitles: { select: { id: true, format: true } },
-              faceDetections: { select: { id: true } },
             },
           },
         },

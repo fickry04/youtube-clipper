@@ -35,11 +35,7 @@ export async function GET(
           },
         },
         asset: true,
-        subtitles: { select: { format: true, createdAt: true } },
-        faceDetections: {
-          orderBy: { timestamp: 'asc' },
-          take: 50,
-        },
+        subtitles: { select: { format: true, createdAt: true } }
       },
     });
 

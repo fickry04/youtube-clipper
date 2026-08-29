@@ -16,7 +16,7 @@ export type JobType =
   | 'TRANSCRIPT'
   | 'VIRAL_ANALYSIS'
   | 'CREATE_CLIPS'
-  | 'GENERATE_SUBTITLE'
+  | 'EXPORT_VIDEO'
   | 'FACE_DETECTION'
   | 'SOCIAL_PUBLISH';
 
@@ -26,7 +26,7 @@ export const QUEUE_NAMES = {
   TRANSCRIPT: 'transcript',
   ANALYSIS: 'analysis',
   CLIP: 'clip',
-  SUBTITLE: 'subtitle',
+  EXPORT_VIDEO: 'export-video',
   FACE_DETECTION: 'face-detection',
   MANUAL_CROP: 'manual-crop',
   AI_TRANSCRIPT: 'ai-transcript',
@@ -67,7 +67,7 @@ export interface CreateClipsPayload {
   clipIds: string[];
 }
 
-export interface GenerateSubtitlePayload {
+export interface ExportVideoPayload {
   jobId: string;
   videoId: string;
   userId: string;

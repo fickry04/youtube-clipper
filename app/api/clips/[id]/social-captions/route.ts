@@ -100,6 +100,7 @@ export async function POST(
       categories: clip.category,
       durationSeconds: clip.durationSeconds,
       videoTitle: clip.viralAnalysis.video.title,
+      authorName: clip.viralAnalysis.video.authorName,
       transcriptExcerpt: excerptSource.slice(0, TRANSCRIPT_EXCERPT_CHARS),
     });
 

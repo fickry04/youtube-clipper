@@ -72,7 +72,7 @@ export function SocialAccountsManager() {
 
   function openCreateForm(platform?: SocialPlatform) {
     if (platform === 'YOUTUBE') {
-      redirect('/api/social-accounts/google');
+      window.location.href = '/api/social-accounts/google';
     }
     setEditingId(null);
     setForm({ ...EMPTY_FORM, ...(platform ? { platform } : {}) });

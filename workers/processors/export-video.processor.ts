@@ -19,26 +19,15 @@ import { transcribeClip } from '../../lib/whisper';
 import { cuesToSrt, groupWordsIntoCues } from '../../lib/transcript/word-timestamps';
 import { renderRemotionSubtitles } from '../../lib/remotion/render';
 import { parseTranscriptSegments } from '../../lib/utils';
-import type { GenerateSubtitlePayload } from '../../lib/queue/jobs';
+import type { ExportVideoPayload } from '../../lib/queue/jobs';
 import type { CaptionCue } from '../../remotion/types';
-
-// ---------------------------------------------------------------------------
-// Progress Helper
-// ---------------------------------------------------------------------------
-
-async function setSubtitleProgress(jobId: string, job: Job<GenerateSubtitlePayload>, progress: number) {
-    await job.updateProgress(progress);
-    await prisma.job.update({
-        where: { id: jobId },
-        data: { progress },
-    }).catch(() => { });
-}
+import { setJobProgress } from '@/workers';
 
 // ---------------------------------------------------------------------------
 // Processor
 // ---------------------------------------------------------------------------
 
-export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promise<void> {
+export async function processExportVideo(job: Job<ExportVideoPayload>): Promise<void> {
     const { jobId, userId, clipId, styleConfig } = job.data;
 
     await prisma.job.update({
@@ -46,7 +35,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
         data: { status: 'PROCESSING', progress: 10, startedAt: new Date(), attempts: { increment: 1 } },
     });
 
-    await setSubtitleProgress(jobId, job, 10);
+    await setJobProgress(jobId, job, 10);
 
     try {
         const storage = getStorage();
@@ -87,7 +76,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
             verticalPath = await storage.get(verticalKey);
         }
 
-        await setSubtitleProgress(jobId, job, 25);
+        await setJobProgress(jobId, job, 25);
 
         // 3. Resolve cues: Use existing calibrated cues from job payload / database if available
         const wordsPerPage = styleConfig?.wordsPerPage || 3;
@@ -146,7 +135,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
 
         const srtContent = cuesToSrt(cues);
 
-        await setSubtitleProgress(jobId, job, 45);
+        await setJobProgress(jobId, job, 45);
 
         // 4. Render 9:16 Vertical Video with Remotion Headless Renderer
         const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `remotion-sub-${clipId}-`));
@@ -162,11 +151,11 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
                 styleConfig,
                 onProgress: async (p) => {
                     const mappedProgress = Math.min(92, 45 + Math.round(p * 47));
-                    await setSubtitleProgress(jobId, job, mappedProgress);
+                    await setJobProgress(jobId, job, mappedProgress);
                 },
             });
 
-            await setSubtitleProgress(jobId, job, 93);
+            await setJobProgress(jobId, job, 93);
 
             // 5. Save rendered Remotion subtitled video to storage
             const subtitledVerticalKey = StorageKeys.clipVerticalSubtitled(userId, clipId);
@@ -195,7 +184,7 @@ export async function processSubtitle(job: Job<GenerateSubtitlePayload>): Promis
                 },
             });
 
-            await setSubtitleProgress(jobId, job, 98);
+            await setJobProgress(jobId, job, 98);
         } finally {
             await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
         }

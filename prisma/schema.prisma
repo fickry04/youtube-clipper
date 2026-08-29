@@ -101,6 +101,7 @@ model Video {
   id           String   @id @default(cuid())
   youtubeUrl   String
   youtubeId    String
+  authorName   String?
   title        String?
   description  String?
   thumbnailUrl String?
@@ -185,15 +186,15 @@ model Clip {
   category         String[] // ViralCategory values
   strengths        String[]
   weaknesses       String[]
+  hasFaceDetection Boolean       @default(false)
   processingStatus String        @default("PENDING") // PENDING, PROCESSING, COMPLETED, FAILED
   processingError  String?
   socialCaptions   Json? // Per-platform AI captions: { YOUTUBE: { hook, description, hashtags[] }, ... }
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
-  asset          VideoAsset?
-  subtitles      Subtitle[]
-  faceDetections FaceDetection[]
+  asset     VideoAsset?
+  subtitles Subtitle[]
 
   @@index([viralAnalysisId])
 }
@@ -215,21 +216,6 @@ model Subtitle {
   @@index([clipId])
 }
 
-model FaceDetection {
-  id         String   @id @default(cuid())
-  clipId     String
-  clip       Clip     @relation(fields: [clipId], references: [id], onDelete: Cascade)
-  timestamp  Float // seconds within clip
-  x          Float // normalized 0.0-1.0
-  y          Float // normalized 0.0-1.0
-  width      Float // normalized 0.0-1.0
-  height     Float // normalized 0.0-1.0
-  confidence Float
-  createdAt  DateTime @default(now())
-
-  @@index([clipId])
-}
-
 // =============================================================================
 // JOB QUEUE MODEL
 // =============================================================================
@@ -239,7 +225,7 @@ model Job {
   userId      String
   user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
   videoId     String?
-  video       Video?    @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  video       Video?    @relation(fields: [videoId], references: [id], onDelete: Cascade)
   type        String // DOWNLOAD_VIDEO, TRANSCRIPT, VIRAL_ANALYSIS, CREATE_CLIPS, etc.
   status      String    @default("QUEUED") // QUEUED, PROCESSING, COMPLETED, FAILED, CANCELLED
   progress    Int       @default(0) // 0-100

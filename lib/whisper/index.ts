@@ -50,7 +50,7 @@ export async function transcribeClipLocally(
 
     // Call nodejs-whisper with explicit modelRootPath
     await nodewhisper(opts.mediaPath, {
-      modelName: 'base',
+      modelName: 'small',
       modelRootPath,
       removeWavFileAfterTranscription: true,
       withCuda: false,

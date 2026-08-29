@@ -25,7 +25,7 @@ async function setFaceProgress(jobId: string, job: Job<FaceDetectionPayload>, pr
   await prisma.job.update({
     where: { id: jobId },
     data: { progress },
-  }).catch(() => {});
+  }).catch(() => { });
 }
 
 export async function processFaceDetection(job: Job<FaceDetectionPayload>): Promise<void> {
@@ -79,31 +79,20 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
     await setFaceProgress(jobId, job, 50);
 
     // 2. Compute smooth active-speaker framing trajectory
-    const { cropFilter, detections } = computeSmoothCropTrajectory(frames, videoInfo);
+    const { cropFilter } = computeSmoothCropTrajectory(frames, videoInfo);
 
-    await setFaceProgress(jobId, job, 65);
+    await setFaceProgress(jobId, job, 60);
 
-    // 3. Persist face detection points to database
-    if (detections.length > 0) {
-      await prisma.faceDetection.deleteMany({ where: { clipId } });
-      await prisma.faceDetection.createMany({
-        data: detections.map((d) => ({
-          clipId,
-          timestamp: d.timestamp,
-          x: d.x,
-          y: d.y,
-          width: d.width,
-          height: d.height,
-          confidence: d.confidence,
-        })),
-      });
-    }
-
-    await setFaceProgress(jobId, job, 75);
-
-    // 4. Render 9:16 vertical crop with FFmpeg
+    // 3. Render 9:16 vertical crop with FFmpeg
     const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-face-crop-${clipId}-`));
     const croppedTmp = path.join(tmpDir, 'clip_vertical.mp4');
+
+    // 4. Update hasFaceDetection
+    await prisma.clip.update({
+      where: { id: clipId },
+      data: { hasFaceDetection: true },
+    });
+    await setFaceProgress(jobId, job, 75);
 
     try {
       await cropVerticalDynamic({
@@ -114,14 +103,14 @@ export async function processFaceDetection(job: Job<FaceDetectionPayload>): Prom
 
       await setFaceProgress(jobId, job, 90);
 
-      // 5. Save 9:16 vertical video to storage
+      // 4. Save 9:16 vertical video to storage
       const verticalKey = StorageKeys.clipVertical(userId, clipId);
       await storage.save(verticalKey, croppedTmp);
     } finally {
       await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
     }
 
-    // 6. Mark job complete
+    // 5. Mark job complete
     await prisma.job.update({
       where: { id: jobId },
       data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },

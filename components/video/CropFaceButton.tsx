@@ -43,7 +43,7 @@ export function CropFaceButton({
     setError('');
     setLoadingAi(true);
     try {
-      const res = await fetch(`/api/clips/${clipId}/crop`, { method: 'POST' });
+      const res = await fetch(`/api/clips/${clipId}/crop-face-ai`, { method: 'POST' });
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Gagal memulai auto-crop video.');

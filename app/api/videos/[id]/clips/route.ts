@@ -82,16 +82,15 @@ export async function POST(
   }
 
   const { id: videoId } = await params;
-
   let body: { clipId?: string; clipIds?: string[] } = {};
+
   try {
-    const text = await request.text();
-    if (text) {
-      body = JSON.parse(text);
-    }
+    body = JSON.parse(await request.json());
   } catch {
     // Ignore invalid JSON if body wasn't JSON
   }
+
+  console.log(body)
 
   // Ownership + guard checks
   const video = await prisma.video.findFirst({
