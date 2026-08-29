@@ -1,6 +1,7 @@
 import { google } from 'googleapis';
 import { decryptJson } from '@/lib/crypto';
 import fs from 'node:fs';
+import prisma from '@/lib/prisma';
 
 // | ID | Category              |
 // | -: | --------------------- |

@@ -7,11 +7,13 @@ import {
 } from '@/workers/processors/social/youtube.processor';
 import { Job } from 'bullmq';
 import type { SocialPublishJobPayload } from '@/lib/queue/jobs';
+import { setJobProgress } from '..';
 
 export async function processSocialPublish(
   job: Job<SocialPublishJobPayload>,
 ): Promise<{ success: boolean; videoId?: string }> {
   const {
+    jobId,
     userId,
     clipId,
     accountId,
@@ -27,6 +29,8 @@ export async function processSocialPublish(
     },
   });
 
+  await setJobProgress(jobId, job, 20)
+
   if (!account || !account.encryptedCredential) {
     throw new Error('Social account not found or not authorized');
   }
@@ -41,6 +45,9 @@ export async function processSocialPublish(
   if (!clip) {
     throw new Error('Clip not found');
   }
+
+  await setJobProgress(jobId, job, 40)
+
 
   // 3. Tentukan nama file berdasarkan variant
   let fileName: string;
@@ -64,6 +71,8 @@ export async function processSocialPublish(
       );
   }
 
+  await setJobProgress(jobId, job, 60)
+
   // 4. Tentukan path video
   const storageRoot =
     process.env.STORAGE_PATH || path.join(process.cwd(), 'storage');
@@ -81,6 +90,8 @@ export async function processSocialPublish(
     `[Worker] Video path: ${videoPath}`,
   );
 
+  await setJobProgress(jobId, job, 80)
+
   // 5. Upload ke platform
   if (platform === 'YOUTUBE') {
     console.log(
@@ -97,6 +108,18 @@ export async function processSocialPublish(
       caption.hook,
       caption.description,
     );
+
+    await setJobProgress(jobId, job, 100)
+
+    await prisma.job.update({
+      where: {
+        id: jobId,
+      },
+      data: {
+        status: 'COMPLETED',
+        completedAt: new Date(),
+      }
+    })
 
     console.log(
       `[Worker] Successfully uploaded clip ${clipId} to YouTube. Video ID: ${videoId}`,

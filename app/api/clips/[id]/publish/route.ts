@@ -129,7 +129,7 @@ export async function POST(
 
     // Masukkan ke BullMQ
     await getQueue(QUEUE_NAMES.SOCIAL_PUBLISH).add(
-      'publish-social',
+      'social-publish',
       {
         jobId: job.id,
         userId: session.user.id,

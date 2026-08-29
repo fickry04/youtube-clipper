@@ -1,6 +1,5 @@
 /**
  * GET  /api/clips/[id]/subtitle  — fetch SRT or Remotion word-level cues (with local Whisper extraction)
- * POST /api/clips/[id]/subtitle  — enqueue subtitle generation worker job
  *
  * Ownership chain: clip → viralAnalysis → video → project → user
  */

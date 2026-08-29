@@ -34,7 +34,7 @@ Platform voice guidelines:
 Hard rules:
 - "hook" is the attention-grabbing title line; respect each platform's maxHookChars.
 - "description" is the body text with a few hashtags on it; keep within maxDescriptionChars INCLUDING any hashtags you inline.
-- "authorName" is the author name, ALWAYS copy this and put it on the last line of the description.
+- "authorName" is the author name, ALWAYS copy this and put it on the last line of the description with Source: YT <authorName>.
 - Always include ALL five platform keys (YOUTUBE, TIKTOK, INSTAGRAM, X, THREADS).
 - Indonesian language for all copy. Never mention that you are an AI.`;
 
