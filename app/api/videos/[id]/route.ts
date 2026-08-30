@@ -124,11 +124,9 @@ export async function DELETE(
 
     const fileDeletions = [
       ...video.assets.map((a) => storage.delete(a.storagePath)),
-      ...clips.filter((c) => c.asset).map((c) => storage.delete(c.asset!.storagePath)),
+      // ...clips.filter((c) => c.asset).map((c) => storage.delete(c.asset!.storagePath)),
       // Delete 9:16 vertical crop file if exists
       ...clips.map((c) => storage.delete(StorageKeys.clipVertical(userId, c.id))),
-      // Delete burned subtitles video if exists
-      ...clips.map((c) => storage.delete(`users/${userId}/clips/${c.id}/clip_burned.mp4`)),
       // Delete subtitle SRT if exists
       ...clips.map((c) => storage.delete(StorageKeys.clipSubtitle(userId, c.id))),
     ];

@@ -18,13 +18,14 @@ export type JobType =
   | 'CREATE_CLIPS'
   | 'EXPORT_VIDEO'
   | 'FACE_DETECTION'
-  | 'SOCIAL_PUBLISH';
+  | 'SOCIAL_PUBLISH'
+  | 'MANUAL_CROP';
 
 // Queue names
 export const QUEUE_NAMES = {
   VIDEO: 'video',
   TRANSCRIPT: 'transcript',
-  ANALYSIS: 'analysis',
+  VIRAL_ANALYSIS: 'viral-analysis',
   CLIP: 'clip',
   EXPORT_VIDEO: 'export-video',
   FACE_DETECTION: 'face-detection',
@@ -56,7 +57,6 @@ export interface ViralAnalysisPayload {
   jobId: string;
   videoId: string;
   userId: string;
-  transcriptId: string;
 }
 
 export interface CreateClipsPayload {
@@ -78,12 +78,25 @@ export interface ExportVideoPayload {
   sttEngine?: 'whisper' | 'gemini';
 }
 
-
 export interface FaceDetectionPayload {
   jobId: string;
-  videoId: string;
   userId: string;
   clipId: string;
+}
+
+export interface ManualCropPayload {
+  jobId: string;
+  userId: string;
+  clipId: string;
+  xCenterNorm: number;
+  yCenterNorm: number;
+  scale: number;
+}
+
+export interface ViralAnalysisPayload {
+  jobId: string;
+  userId: string;
+  videoId: string;
 }
 
 export interface SocialPublishJobPayload {

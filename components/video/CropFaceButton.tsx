@@ -2,8 +2,7 @@
 
 import { useState, useCallback, useId, useRef } from 'react';
 import { createPortal } from 'react-dom';
-import { useRouter } from 'next/navigation';
-import type { JobInfo } from './VideoDetailManager';
+import type { JobInfo } from '@/lib/types';
 
 interface CropFaceButtonProps {
   clipId: string;
@@ -20,7 +19,6 @@ export function CropFaceButton({
   isJobRunning = false,
   onJobStarted,
 }: CropFaceButtonProps) {
-  const router = useRouter();
   const [loadingAi, setLoadingAi] = useState(false);
   const [loadingManual, setLoadingManual] = useState(false);
   const [error, setError] = useState('');
@@ -60,29 +58,17 @@ export function CropFaceButton({
           completedAt: null,
         });
       }
-      router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan.');
     } finally {
       setLoadingAi(false);
     }
-  }, [clipId, router, onJobStarted]);
+  }, [clipId, onJobStarted]);
 
   const handleManualCropSubmit = useCallback(async () => {
     setError('');
     setLoadingManual(true);
     setShowManualModal(false);
-    if (onJobStarted) {
-      onJobStarted({
-        id: "temp_job_id", // biar keren aja langsung muncul sebenarnya perlu refresh
-        type: 'MANUAL_CROP',
-        status: 'PROCESSING',
-        progress: 5,
-        error: null,
-        createdAt: new Date().toISOString(),
-        completedAt: null,
-      });
-    }
 
     try {
       const res = await fetch(`/api/clips/${clipId}/crop-manual`, {
@@ -94,24 +80,11 @@ export function CropFaceButton({
           scale,
         }),
       });
-      router.refresh()
       const data = await res.json();
       if (!data.success) {
         setError(data.error ?? 'Manual Crop failed.');
-        if (data.jobId && onJobStarted) {
-          onJobStarted({
-            id: data.jobId,
-            type: 'MANUAL_CROP',
-            status: 'FAILED',
-            progress: 100,
-            error: data.error ?? 'Manual Crop failed.',
-            createdAt: new Date().toISOString(),
-            completedAt: new Date().toISOString(),
-          });
-        }
         return;
       }
-
       if (data.jobId && onJobStarted) {
         onJobStarted({
           id: data.jobId,
@@ -123,13 +96,12 @@ export function CropFaceButton({
           completedAt: null,
         });
       }
-      router.refresh();
     } catch {
       setError('Terjadi kesalahan jaringan saat manual crop.');
     } finally {
       setLoadingManual(false);
     }
-  }, [clipId, xCenter, yCenter, scale, router, onJobStarted]);
+  }, [clipId, xCenter, yCenter, scale, onJobStarted]);
 
   const togglePlayPause = () => {
     if (videoRef.current) {

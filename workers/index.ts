@@ -13,6 +13,8 @@ import { processExportVideo } from './processors/export-video.processor';
 import { processFaceDetection } from './processors/face.processor';
 import { processSocialPublish } from './processors/social-publish.processor';
 import prisma from '@/lib/prisma';
+import { processManualCrop } from './processors/crop-manual.processor';
+import { processViralAnalysis } from './processors/analyze.processor';
 
 // ---------------------------------------------------------------------------
 // Worker configuration
@@ -39,6 +41,12 @@ const clipWorker = new Worker(
   heavyWorkerOptions
 );
 
+const analyzeWorker = new Worker(
+  QUEUE_NAMES.VIRAL_ANALYSIS,
+  async (job) => processViralAnalysis(job),
+  heavyWorkerOptions
+)
+
 const exportVideoWorker = new Worker(
   QUEUE_NAMES.EXPORT_VIDEO,
   async (job) => processExportVideo(job),
@@ -57,15 +65,23 @@ const socialPublishWorker = new Worker(
   heavyWorkerOptions
 );
 
+const manualCropWorker = new Worker(
+  QUEUE_NAMES.MANUAL_CROP,
+  async (job) => processManualCrop(job),
+  heavyWorkerOptions
+);
+
 // ---------------------------------------------------------------------------
 // Lifecycle logging
 // ---------------------------------------------------------------------------
 
 const workers = [
   { worker: clipWorker, name: 'clip' },
+  { worker: analyzeWorker, name: 'viral-analyze' },
   { worker: exportVideoWorker, name: 'export-video' },
   { worker: faceWorker, name: 'face' },
   { worker: socialPublishWorker, name: 'social-publish' },
+  { worker: manualCropWorker, name: 'manual-crop' }
 ];
 
 for (const { worker, name } of workers) {

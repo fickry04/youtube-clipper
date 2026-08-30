@@ -1,6 +1,5 @@
 import { GoogleGenAI } from '@google/genai';
 import type { WordTimestamp } from '../../remotion/types';
-
 /**
  * Filter out non-speech noise tags (e.g. [LAUGHS], [MUSIC], [APPLAUSE], (laughs), etc.)
  */
@@ -68,7 +67,7 @@ Kembalikan respon HANYA berupa JSON Array tanpa markdown code blocks:
 ]`;
 
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.6-flash',
       contents: prompt,
       config: {
         responseMimeType: 'application/json',

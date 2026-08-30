@@ -87,3 +87,64 @@ export interface YoutubeVideoMetadata {
   channel: string;
   description?: string;
 }
+
+
+export interface JobInfo {
+  id: string;
+  type: string;
+  status: string;
+  progress: number;
+  error: string | null;
+  payload?: unknown;
+  createdAt: Date | string;
+  completedAt: Date | string | null;
+}
+
+export interface ClipInfo {
+  id: string;
+  rank: number;
+  viralScore: number;
+  durationSeconds: number;
+  startTime: string;
+  endTime: string;
+  processingStatus: string;
+  processingError: string | null;
+  title: string;
+  category: string[];
+  hook: string;
+  summary: string;
+  whyViral: string;
+  strengths: string[];
+  weaknesses: string[];
+  asset: { id: string; storagePath: string } | null;
+  subtitles: { id: string; format: string }[];
+  faceDetections?: { id: string }[];
+  hasVertical?: boolean;
+  hasVerticalSubtitled?: boolean;
+}
+
+export interface VideoInfo {
+  id: string;
+  youtubeId: string;
+  youtubeUrl: string;
+  title: string | null;
+  description: string | null;
+  thumbnailUrl: string | null;
+  duration: number | null;
+  projectId: string;
+  project: {
+    id: string;
+    name: string;
+  };
+  transcript: {
+    id: string;
+    languageCode: string;
+    segments: TranscriptSegment[];
+  } | null;
+  viralAnalysis: {
+    id: string;
+    overallSummary: string | null;
+    clips: ClipInfo[];
+  } | null;
+  jobs: JobInfo[];
+}

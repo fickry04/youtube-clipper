@@ -124,7 +124,7 @@ KEMBALIKAN HANYA JSON ARRAY:
 
     console.log('[Gemini STT] Sending audio stream to Gemini Flash model...');
     const response = await ai.models.generateContent({
-      model: 'gemini-3.6-flash',
+      model: process.env.GEMINI_MODEL || 'gemini-3.5-flash-lite',
       contents: [
         {
           inlineData: {

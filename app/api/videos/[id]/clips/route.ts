@@ -82,15 +82,7 @@ export async function POST(
   }
 
   const { id: videoId } = await params;
-  let body: { clipId?: string; clipIds?: string[] } = {};
-
-  try {
-    body = JSON.parse(await request.json());
-  } catch {
-    // Ignore invalid JSON if body wasn't JSON
-  }
-
-  console.log(body)
+  const body = await request.json()
 
   // Ownership + guard checks
   const video = await prisma.video.findFirst({
@@ -128,7 +120,7 @@ export async function POST(
     }
     targetClipIds = [body.clipId];
   } else if (Array.isArray(body.clipIds) && body.clipIds.length > 0) {
-    targetClipIds = body.clipIds.filter((id) => validClipIds.has(id));
+    targetClipIds = body.clipIds.filter((id: string) => validClipIds.has(id));
     if (targetClipIds.length === 0) {
       return Response.json(
         { success: false, error: 'None of the provided clip IDs belong to this video.' },

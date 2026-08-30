@@ -51,7 +51,7 @@ function getQueues(): Record<string, Queue> {
     globalForQueues.queues = {
       [QUEUE_NAMES.VIDEO]: createQueue(QUEUE_NAMES.VIDEO),
       [QUEUE_NAMES.TRANSCRIPT]: createQueue(QUEUE_NAMES.TRANSCRIPT),
-      [QUEUE_NAMES.ANALYSIS]: createQueue(QUEUE_NAMES.ANALYSIS),
+      [QUEUE_NAMES.VIRAL_ANALYSIS]: createQueue(QUEUE_NAMES.VIRAL_ANALYSIS),
       [QUEUE_NAMES.CLIP]: createQueue(QUEUE_NAMES.CLIP),
       [QUEUE_NAMES.EXPORT_VIDEO]: createQueue(QUEUE_NAMES.EXPORT_VIDEO),
       [QUEUE_NAMES.FACE_DETECTION]: createQueue(QUEUE_NAMES.FACE_DETECTION),

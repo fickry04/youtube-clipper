@@ -47,12 +47,9 @@ export async function GET(
     let targetKey = clip.asset.storagePath;
 
     if (wantSubtitled) {
-      const subtitledKey = StorageKeys.clipSubtitled(session.user.id, clipId);
       const legacyBurnedKey = `users/${session.user.id}/clips/${clipId}/clip_burned.mp4`;
 
-      if (await storage.exists(subtitledKey)) {
-        targetKey = subtitledKey;
-      } else if (await storage.exists(legacyBurnedKey)) {
+      if (await storage.exists(legacyBurnedKey)) {
         targetKey = legacyBurnedKey;
       }
     } else {

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { RemotionStudioModal } from '../remotion/RemotionStudioModal';
-import type { JobInfo } from './VideoDetailManager';
+import type { JobInfo } from '@/lib/types';
 
 interface GenerateSubtitleButtonProps {
   clipId: string;

@@ -6,7 +6,7 @@ import type { PlayerRef } from '@remotion/player';
 import { RemotionPlayerClient } from './RemotionPlayerClient';
 import type { CaptionCue, SubtitlePreset, SubtitleStyleConfig, WordTimestamp, TitleCardConfig, TitleCardTemplate, HookTransitionType } from '@/remotion/types';
 import { groupWordsIntoCues } from '@/lib/transcript/word-timestamps';
-import type { JobInfo } from '@/components/video/VideoDetailManager';
+import type { JobInfo } from '@/lib/types';
 
 interface RemotionStudioModalProps {
   clipId: string;

@@ -1,15 +1,12 @@
 /**
- * POST /api/clips/[id]/crop-manual — perform direct 9:16 manual crop without AI face tracker
+ * POST /api/clips/[id]/crop-manual — Enqueue direct 9:16 manual crop without AI face tracker
  */
 
 import type { NextRequest } from 'next/server';
-import * as path from 'path';
-import * as fs from 'fs/promises';
-import * as os from 'os';
 import { requireSession } from '@/lib/auth/session';
 import prisma from '@/lib/prisma';
-import { getStorage, StorageKeys, LocalStorageService } from '@/lib/storage';
-import { cropVerticalManual } from '@/lib/ffmpeg';
+import { getQueue, QUEUE_NAMES } from '@/lib/queue';
+import type { ManualCropPayload } from '@/lib/queue/jobs';
 
 export async function POST(
   request: NextRequest,
@@ -24,6 +21,7 @@ export async function POST(
 
   const { id: clipId } = await params;
 
+  // 1. Validate clip existence and ownership
   const clip = await prisma.clip.findFirst({
     where: {
       id: clipId,
@@ -52,9 +50,9 @@ export async function POST(
   }
 
   try {
+    // 2. Parse and validate body input
     const body = await request.json().catch(() => ({}));
 
-    // Support either 0.0-1.0 or 0-100% ranges
     let xCenterNorm = typeof body.xCenterNorm === 'number' ? body.xCenterNorm : (typeof body.xCenter === 'number' ? body.xCenter : 0.5);
     if (xCenterNorm > 1.0) xCenterNorm = xCenterNorm / 100;
     xCenterNorm = Math.max(0, Math.min(1, xCenterNorm));
@@ -65,82 +63,41 @@ export async function POST(
 
     const scale = typeof body.scale === 'number' ? Math.max(1.0, Math.min(3.0, body.scale)) : 1.0;
 
-    const storage = getStorage();
-    const clipKey = StorageKeys.clipVideo(session.user.id, clipId);
-    const exists = await storage.exists(clipKey);
-    if (!exists) {
-      return Response.json(
-        { success: false, error: 'File video asli klip tidak ditemukan di storage.' },
-        { status: 404 }
-      );
-    }
-
-    let clipVideoPath: string;
-    if (storage instanceof LocalStorageService) {
-      clipVideoPath = storage.getAbsolutePath(clipKey);
-    } else {
-      clipVideoPath = await storage.get(clipKey);
-    }
-
-    // Process FFmpeg crop in a temporary directory
-    const tmpDir = await fs.mkdtemp(path.join(os.tmpdir(), `vc-manual-crop-${clipId}-`));
-    const croppedTmp = path.join(tmpDir, 'clip_vertical.mp4');
-
-    // Create a job record
     const videoId = clip.viralAnalysis.videoId;
+
+    // 3. Create job record in database
     const job = await prisma.job.create({
       data: {
         userId: session.user.id,
         videoId: videoId,
         type: 'MANUAL_CROP',
-        status: 'PROCESSING',
-        startedAt: new Date(),
-        progress: 15
+        status: 'QUEUED',
+        payload: { clipId, xCenterNorm, yCenterNorm, scale },
       },
     });
 
-    try {
-      await cropVerticalManual({
-        videoPath: clipVideoPath,
-        outputPath: croppedTmp,
+    // 4. Enqueue job to BullMQ
+    await getQueue(QUEUE_NAMES.MANUAL_CROP).add(
+      'manual-crop',
+      {
+        jobId: job.id,
+        userId: session.user.id,
+        clipId,
         xCenterNorm,
         yCenterNorm,
         scale,
-      });
-
-      // Save the 9:16 vertical video into storage
-      const verticalKey = StorageKeys.clipVertical(session.user.id, clipId);
-      await storage.save(verticalKey, croppedTmp);
-
-      // Mark job as completed
-      await prisma.job.update({
-        where: { id: job.id },
-        data: { status: 'COMPLETED', progress: 100, completedAt: new Date() },
-      });
-
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Analysis failed.';
-
-      // Mark job as failed
-      await prisma.job.update({
-        where: { id: job.id },
-        data: { status: 'FAILED', error: message, completedAt: new Date() },
-      });
-    }
-    finally {
-      await fs.rm(tmpDir, { recursive: true, force: true }).catch(() => { });
-    }
+      } satisfies ManualCropPayload,
+      { jobId: job.id }
+    );
 
     return Response.json({
       success: true,
-      clipId,
-      xCenterNorm,
-      yCenterNorm,
-      scale,
-      message: 'Video vertikal 9:16 manual berhasil dibuat.',
+      jobId: job.id,
+      message: 'Manual crop job berhasil diantrekan.',
     });
+
   } catch (err) {
-    const message = err instanceof Error ? err.message : 'Gagal memproses manual crop.';
+    const message = err instanceof Error ? err.message : 'Gagal memulai manual crop.';
     return Response.json({ success: false, error: message }, { status: 500 });
   }
 }

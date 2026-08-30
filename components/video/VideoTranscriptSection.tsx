@@ -1,8 +1,7 @@
 'use client';
 
 import { useState, useCallback, useMemo } from 'react';
-import { useRouter } from 'next/navigation';
-import { LanguageSelector } from '@/components/ui/LanguageSelector';
+import { LanguageSelector } from '@/components/transcript/LanguageSelector';
 import { TranscriptViewer } from '@/components/transcript/TranscriptViewer';
 import type { LanguageInfo, TranscriptSegment } from '@/lib/types';
 
@@ -23,7 +22,6 @@ export function VideoTranscriptSection({
   initialLanguageCode,
   onTranscriptUpdated,
 }: VideoTranscriptSectionProps) {
-  const router = useRouter();
 
   const [step, setStep] = useState<Step>('idle');
   const [error, setError] = useState('');
@@ -107,14 +105,12 @@ export function VideoTranscriptSection({
         onTranscriptUpdated?.(data.segments, newLang);
       }
 
-      // Refresh server data and go back to idle to show new transcript
-      router.refresh();
       setStep('idle');
     } catch {
       setError('Network error. Unable to fetch video transcript.');
       setStep('language-selection');
     }
-  }, [videoId, selectedLang, router, onTranscriptUpdated]);
+  }, [videoId, selectedLang, onTranscriptUpdated]);
 
   const handleCancel = useCallback(() => {
     setStep('idle');
