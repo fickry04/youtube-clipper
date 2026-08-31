@@ -6121,3 +6121,37 @@ body {
     font-size: 1.5rem;
   }
 }
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.animate-spin {
+  animation: spin 1s linear infinite;
+}
+
+/* Opsional: Warna tombol state (Sesuaikan dengan file CSS Anda) */
+.post-upload-cta.is-publish-loading {
+  opacity: 0.8;
+  cursor: not-allowed;
+}
+
+.post-upload-cta.is-publish-success {
+  background: #10b981 !important;
+  /* Warna hijau */
+  --pf: #10b981 !important;
+  --pf2: #059669 !important;
+}
+
+.post-upload-cta.is-publish-error {
+  background: #ef4444 !important;
+  /* Warna merah */
+  --pf: #ef4444 !important;
+  --pf2: #dc2626 !important;
+}

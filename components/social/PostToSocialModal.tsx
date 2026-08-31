@@ -19,7 +19,7 @@ import {
 } from '@/lib/social/platforms';
 import { PlatformIcon } from './SocialIcons';
 import type { SocialAccountInfo } from './SocialAccountsManager';
-import type { ClipInfo, JobInfo } from '../video/VideoDetailManager';
+import type { ClipInfo, JobInfo } from '@/lib/types';
 
 interface PostToSocialModalProps {
   clip: ClipInfo;
@@ -64,6 +64,9 @@ async function copyText(text: string): Promise<boolean> {
   }
 }
 
+// Tipe untuk status publish
+type PublishStatus = 'idle' | 'loading' | 'success' | 'error';
+
 export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: PostToSocialModalProps) {
   const mounted = useSyncExternalStore(
     emptySubscribe,
@@ -79,6 +82,9 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
   const [generateError, setGenerateError] = useState('');
   const [activePlatform, setActivePlatform] = useState<SocialPlatform>('YOUTUBE');
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
+
+  // State untuk melacak status publish otomatis
+  const [publishStatus, setPublishStatus] = useState<PublishStatus>('idle');
 
   // Pause background page videos while the modal is open
   const pausedVideosRef = useRef<HTMLVideoElement[]>([]);
@@ -228,6 +234,7 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
       return next;
     });
   }
+
   async function handleAutoPublish() {
     if (!activePlatform) return;
 
@@ -246,6 +253,11 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
       window.alert('Caption belum tersedia.');
       return;
     }
+
+    // Set state menjadi loading saat proses publish dimulai
+    setPublishStatus('loading');
+
+    let hasError = false;
 
     for (const account of selectedAccounts) {
       try {
@@ -290,11 +302,20 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
         }
 
       } catch (error) {
+        hasError = true;
         console.error(
           `Gagal posting ${activePlatform}`,
           error,
         );
       }
+    }
+
+    // Update status berdasarkan hasil request
+    if (hasError) {
+      setPublishStatus('error');
+      window.setTimeout(() => setPublishStatus('idle'), 3000); // Kembali normal setelah 3 detik
+    } else {
+      setPublishStatus('success');
     }
   }
 
@@ -315,6 +336,37 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
   if (!mounted) return null;
 
   const selectedCount = selectedAccountIds.size;
+
+  // Teks dan class dinamis untuk tombol publish
+  const getPublishButtonText = () => {
+    switch (publishStatus) {
+      case 'loading':
+        return 'Sedang Memproses...';
+      case 'success':
+        return '✓ Dipublikasikan';
+      case 'error':
+        return '✗ Gagal Memposting';
+      default:
+        return `✨ Post Video Otomatis (${selectedCount} Akun Dipilih) ✨`;
+    }
+  };
+
+  // Susun style dalam bentuk Record string agar Typescript tidak komplain
+  const aiPublishColors: Record<string, string> = {
+    '--pf': '#6366f1', // Indigo (default)
+    '--pf2': '#4338ca',
+  };
+
+  if (publishStatus === 'loading') {
+    aiPublishColors['--pf'] = '#6b7280'; // Abu-abu
+    aiPublishColors['--pf2'] = '#4b5563';
+  } else if (publishStatus === 'success') {
+    aiPublishColors['--pf'] = '#10b981'; // Hijau
+    aiPublishColors['--pf2'] = '#059669';
+  } else if (publishStatus === 'error') {
+    aiPublishColors['--pf'] = '#ef4444'; // Merah
+    aiPublishColors['--pf2'] = '#dc2626';
+  }
 
   const modalContent = (
     <div className="post-modal-overlay" onClick={onClose} role="dialog" aria-modal="true" aria-label={`Post Clip #${clip.rank} ke Sosial Media`}>
@@ -538,20 +590,20 @@ export function PostToSocialModal({ clip, onClose, onAIPublishingStarted }: Post
                     <PlatformIcon platform={activePlatform} size={15} />
                     Salin Caption &amp; Buka {activeMeta.shortLabel} ↗
                   </button>
+
                   <button
                     type="button"
-                    className="post-upload-cta"
-                    style={pfStyle(
-                      activeMeta.color,
-                      activeMeta.color2 ?? activeMeta.color,
-                    )}
+                    className={`post-upload-cta is-ai-publish`}
+                    style={aiPublishColors as CSSProperties}
                     onClick={handleAutoPublish}
+                    disabled={publishStatus === 'loading'}
                   >
-                    <PlatformIcon
-                      platform={activePlatform}
-                      size={15}
-                    />
-                    Post Video Otomatis
+                    {publishStatus === 'loading' && (
+                      <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="animate-spin">
+                        <path d="M21 12a9 9 0 1 1-6.219-8.56" />
+                      </svg>
+                    )}
+                    {getPublishButtonText()}
                   </button>
                 </div>
               </>

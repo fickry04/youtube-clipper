@@ -377,23 +377,23 @@ export function RemotionStudioModal({
     const selectedEngine = config.sttEngine || 'whisper';
     setIsTranscribing(true);
     setCuesError(null);
-    if (onAITranscriptStarted) {
-      onAITranscriptStarted({
-        id: "temp_job_id", // biar keren aja langsung muncul
-        type: 'AI_TRANSCRIPT',
-        status: 'QUEUED',
-        progress: 15,
-        error: null,
-        createdAt: new Date(),
-        completedAt: null,
-      });
-    }
     try {
       const res = await fetch(
         `/api/clips/${clipId}/subtitle?format=cues&engine=${selectedEngine}&doTrancscribe=true&wordsPerPage=${wordsPerPage}`
       );
       const data = await res.json();
       if (data.success && Array.isArray(data.cues) && data.cues.length > 0) {
+        if (onAITranscriptStarted) {
+          onAITranscriptStarted({
+            id: data.job.id, // biar keren aja langsung muncul
+            type: 'AI_TRANSCRIPT',
+            status: 'QUEUED',
+            progress: 15,
+            error: null,
+            createdAt: new Date(data.job.createdAt),
+            completedAt: null,
+          });
+        }
         const extractedWords: WordTimestamp[] = data.cues.flatMap((c: CaptionCue) => c.words || []);
         setRawWords(extractedWords);
         setCues(groupWordsIntoCues(extractedWords, wordsPerPage, durationSeconds));
@@ -1359,7 +1359,7 @@ export function RemotionStudioModal({
                     <button
                       type="button"
                       title="Majukan subtitle 0.2 detik"
-                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 0.2).toFixed(2))) }))}
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.max(-30, Number(((prev.timeOffset || 0) - 0.1).toFixed(2))) }))}
                       style={{
                         padding: '4px 8px',
                         borderRadius: '6px',
@@ -1371,7 +1371,7 @@ export function RemotionStudioModal({
                         cursor: 'pointer',
                       }}
                     >
-                      -0.2s
+                      -0.1s
                     </button>
                     <button
                       type="button"
@@ -1393,7 +1393,7 @@ export function RemotionStudioModal({
                     <button
                       type="button"
                       title="Mundurkan subtitle 0.2 detik"
-                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 0.2).toFixed(2))) }))}
+                      onClick={() => setConfig((prev) => ({ ...prev, timeOffset: Math.min(30, Number(((prev.timeOffset || 0) + 0.1).toFixed(2))) }))}
                       style={{
                         padding: '4px 8px',
                         borderRadius: '6px',
@@ -1405,7 +1405,7 @@ export function RemotionStudioModal({
                         cursor: 'pointer',
                       }}
                     >
-                      +0.2s
+                      +0.1s
                     </button>
                     <button
                       type="button"

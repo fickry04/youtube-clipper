@@ -88,7 +88,7 @@ export const PLATFORM_META: Record<SocialPlatform, PlatformMeta> = {
     color: '#1877F2',
     maxHookChars: 90,
     maxDescriptionChars: 280,
-    uploadUrl: 'https://www.facebook.com/profile.php',
+    uploadUrl: 'https://www.facebook.com/',
   },
 };
 

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { PostToSocialModal } from './PostToSocialModal';
-import type { ClipInfo } from '../video/VideoDetailManager';
+import type { ClipInfo } from '@/lib/types';
 
 interface PostSocialButtonProps {
   clip: ClipInfo;
